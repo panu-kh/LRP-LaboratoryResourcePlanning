@@ -7,16 +7,18 @@ import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import platform
 
-# ==================== ตั้งค่า Font ====================
-if platform.system() == 'Darwin': # สำหรับ macOS
+if platform.system() == 'Darwin':
     plt.rcParams['font.family'] = ['Sukhumvit Set', 'Thonburi', 'sans-serif']
-else: # สำหรับ Windows
+else:
     plt.rcParams['font.family'] = ['Tahoma', 'sans-serif']
-    
-plt.rcParams['axes.titlesize'] = 14
-plt.rcParams['axes.labelsize'] = 12
 
-# ==================== Class สำหรับสร้างกล่องข้อความลอย (Tooltip) ====================
+plt.rcParams['text.color'] = '#3C4043'
+plt.rcParams['axes.labelcolor'] = '#5F6368'
+plt.rcParams['xtick.color'] = '#5F6368'
+plt.rcParams['ytick.color'] = '#5F6368'
+plt.rcParams['axes.titlesize'] = 14
+plt.rcParams['axes.labelsize'] = 11
+
 class ToolTip:
     def __init__(self, widget, text):
         self.widget = widget
@@ -28,23 +30,20 @@ class ToolTip:
 
     def show_tooltip(self, event):
         self.tooltip_window = tk.Toplevel(self.widget)
-        self.tooltip_window.wm_overrideredirect(True) # ลบขอบหน้าต่าง
-        self.tooltip_window.attributes("-topmost", True) # ให้อยู่หน้าสุด
+        self.tooltip_window.wm_overrideredirect(True)
+        self.tooltip_window.attributes("-topmost", True)
         
-        frame = tk.Frame(self.tooltip_window, background="#202124", padx=10, pady=8)
+        frame = tk.Frame(self.tooltip_window, background="#202124", padx=12, pady=8)
         frame.pack()
         
         font_name = "Sukhumvit Set" if platform.system() == 'Darwin' else "Tahoma"
-        label = tk.Label(frame, text=self.text, fg="#FFFFFF", bg="#202124", 
-                         font=(font_name, 11), justify="left")
+        label = tk.Label(frame, text=self.text, fg="#F8F9FA", bg="#202124", font=(font_name, 11), justify="left")
         label.pack()
         self.move_tooltip(event)
 
     def move_tooltip(self, event):
         if self.tooltip_window:
-            # ให้กล่องลอยตามเมาส์ (เยื้องไปด้านขวาล่างนิดหน่อย)
-            x = event.x_root + 15
-            y = event.y_root + 15
+            x, y = event.x_root + 15, event.y_root + 15
             self.tooltip_window.wm_geometry(f"+{x}+{y}")
 
     def hide_tooltip(self, event):
@@ -52,14 +51,14 @@ class ToolTip:
             self.tooltip_window.destroy()
             self.tooltip_window = None
 
-# ==================== หน้าหลัก Dashboard ====================
 class DashboardPage(ctk.CTkFrame):
     def __init__(self, parent, spreadsheet):
-        super().__init__(parent, fg_color="#F8F9FA")
+        super().__init__(parent, fg_color="#F0F2F5") 
         
         self.spreadsheet = spreadsheet
         self.bookings_cache = []
-        self.users_cache = [] # เพิ่ม Cache สำหรับเก็บประวัติผู้ใช้
+        self.users_cache = [] 
+        self.ratings_cache = [] # ✅ เพิ่ม Cache เก็บ Rating
         self.current_tab = "Overview"
         self.time_stat_type = "slots" 
         self.canvases = [] 
@@ -74,7 +73,7 @@ class DashboardPage(ctk.CTkFrame):
         try:
             if not self.spreadsheet: return
             
-            # ดึงข้อมูลการจอง (สำหรับกราฟ)
+            # โหลด Bookings
             sheet_book = self.spreadsheet.worksheet("Bookings")
             book_vals = sheet_book.get_all_values()
             self.bookings_cache = []
@@ -83,7 +82,7 @@ class DashboardPage(ctk.CTkFrame):
                 for row in book_vals[1:]:
                     self.bookings_cache.append(dict(zip(b_headers, row)))
                     
-            # ดึงข้อมูลผู้ใช้ (สำหรับ Hover ดูโปรไฟล์)
+            # โหลด Users
             sheet_user = self.spreadsheet.worksheet("Users")
             user_vals = sheet_user.get_all_values()
             self.users_cache = []
@@ -92,101 +91,134 @@ class DashboardPage(ctk.CTkFrame):
                 for row in user_vals[1:]:
                     self.users_cache.append(dict(zip(u_headers, row)))
                     
+            # ✅ โหลด Ratings
+            try:
+                sheet_rating = self.spreadsheet.worksheet("Ratings")
+                rating_vals = sheet_rating.get_all_values()
+                self.ratings_cache = []
+                if len(rating_vals) > 1:
+                    r_headers = rating_vals[0]
+                    for row in rating_vals[1:]:
+                        self.ratings_cache.append(dict(zip(r_headers, row)))
+            except Exception:
+                pass # กรณีไม่มี Sheet Ratings หรือเกิด Error 
+
         except Exception as e:
             print(f"Error loading dashboard data: {e}")
 
     def render_ui(self):
         for widget in self.winfo_children(): widget.destroy()
 
-        ctk.CTkLabel(self, text="⏳ กำลังโหลดข้อมูลสถิติ...", font=("Arial", 16), text_color="#A0A0A0").pack(pady=100)
-        self.update()
         self.load_data()
-        for widget in self.winfo_children(): widget.destroy()
 
-        header_frame = ctk.CTkFrame(self, fg_color="transparent")
-        header_frame.pack(fill="x", pady=(0, 10))
+        nav_frame = ctk.CTkFrame(self, fg_color="#FFFFFF", corner_radius=0, height=70, border_width=1, border_color="#E0E0E0")
+        nav_frame.pack(fill="x")
+        nav_frame.pack_propagate(False)
         
-        ctk.CTkLabel(header_frame, text="📊 Dashboard สถิติการใช้งาน", font=("Arial", 26, "bold"), text_color="#202124").pack(side="left")
+        ctk.CTkLabel(nav_frame, text="Analytics", font=("Arial", 22, "bold"), text_color="#202124").pack(side="left", padx=30)
 
-        tab_frame = ctk.CTkFrame(header_frame, fg_color="#E8EAED", corner_radius=8)
-        tab_frame.pack(side="left", padx=20)
-        
+        tab_bg = ctk.CTkFrame(nav_frame, fg_color="#F1F3F4", corner_radius=20, height=40)
+        tab_bg.pack(side="left", padx=20, pady=15)
+        tab_bg.pack_propagate(False)
+
         def switch_tab(tab_name):
             self.current_tab = tab_name
             btn_over.configure(fg_color="#FFFFFF" if tab_name == "Overview" else "transparent", text_color="#1A73E8" if tab_name == "Overview" else "#5F6368")
             btn_user.configure(fg_color="#FFFFFF" if tab_name == "Users" else "transparent", text_color="#1A73E8" if tab_name == "Users" else "#5F6368")
             btn_time.configure(fg_color="#FFFFFF" if tab_name == "Times" else "transparent", text_color="#1A73E8" if tab_name == "Times" else "#5F6368")
+            btn_rate.configure(fg_color="#FFFFFF" if tab_name == "Ratings" else "transparent", text_color="#1A73E8" if tab_name == "Ratings" else "#5F6368")
             self.update_dashboard()
 
-        btn_over = ctk.CTkButton(tab_frame, text="📈 ภาพรวม (Overview)", font=("Arial", 14, "bold"), fg_color="#FFFFFF", text_color="#1A73E8", hover_color="#F1F3F4", corner_radius=6, command=lambda: switch_tab("Overview"))
-        btn_over.pack(side="left", padx=2, pady=2)
+        btn_over = ctk.CTkButton(tab_bg, text="Overview", font=("Arial", 13, "bold"), fg_color="#FFFFFF", text_color="#1A73E8", hover_color="#FFFFFF", corner_radius=15, width=90, height=32, command=lambda: switch_tab("Overview"))
+        btn_over.pack(side="left", padx=4)
         
-        btn_user = ctk.CTkButton(tab_frame, text="👥 พฤติกรรมผู้ใช้", font=("Arial", 14, "bold"), fg_color="transparent", text_color="#5F6368", hover_color="#F1F3F4", corner_radius=6, command=lambda: switch_tab("Users"))
-        btn_user.pack(side="left", padx=2, pady=2)
+        btn_user = ctk.CTkButton(tab_bg, text="Users", font=("Arial", 13, "bold"), fg_color="transparent", text_color="#5F6368", hover_color="#E8EAED", corner_radius=15, width=90, height=32, command=lambda: switch_tab("Users"))
+        btn_user.pack(side="left", padx=4)
 
-        btn_time = ctk.CTkButton(tab_frame, text="⏱️ ช่วงเวลายอดฮิต", font=("Arial", 14, "bold"), fg_color="transparent", text_color="#5F6368", hover_color="#F1F3F4", corner_radius=6, command=lambda: switch_tab("Times"))
-        btn_time.pack(side="left", padx=2, pady=2)
+        btn_time = ctk.CTkButton(tab_bg, text="Times", font=("Arial", 13, "bold"), fg_color="transparent", text_color="#5F6368", hover_color="#E8EAED", corner_radius=15, width=90, height=32, command=lambda: switch_tab("Times"))
+        btn_time.pack(side="left", padx=4)
 
-        filter_frame = ctk.CTkFrame(self, fg_color="#FFFFFF", corner_radius=10, border_width=1, border_color="#DADCE0", height=60)
-        filter_frame.pack(fill="x", pady=(0, 15))
-        filter_frame.pack_propagate(False)
+        # ✅ เพิ่มแท็บความพึงพอใจ
+        btn_rate = ctk.CTkButton(tab_bg, text="⭐ Ratings", font=("Arial", 13, "bold"), fg_color="transparent", text_color="#5F6368", hover_color="#E8EAED", corner_radius=15, width=90, height=32, command=lambda: switch_tab("Ratings"))
+        btn_rate.pack(side="left", padx=4)
 
-        ctk.CTkLabel(filter_frame, text="📅 กรองข้อมูลตามเวลา:", font=("Arial", 14, "bold"), text_color="#5F6368").pack(side="left", padx=(20, 10))
-        
-        self.filter_var = ctk.StringVar(value="ทั้งหมด (All Time)")
+        filter_frame = ctk.CTkFrame(nav_frame, fg_color="transparent")
+        filter_frame.pack(side="right", padx=30)
+        ctk.CTkLabel(filter_frame, text="Filter by:", font=("Arial", 12), text_color="#5F6368").pack(side="left", padx=10)
+        self.filter_var = ctk.StringVar(value="All Time")
         filter_combo = ctk.CTkComboBox(filter_frame, variable=self.filter_var, 
-                                       values=["ทั้งหมด (All Time)", "เดือนนี้ (This Month)", "30 วันที่ผ่านมา (Last 30 Days)"], 
-                                       width=200, fg_color="#F8F9FA", border_color="#DADCE0", command=lambda e: self.update_dashboard())
-        filter_combo.pack(side="left", pady=10)
+                                       values=["All Time", "This Month", "Last 30 Days"], 
+                                       width=150, height=32, fg_color="#F8F9FA", border_color="#DADCE0", 
+                                       font=("Arial", 12), dropdown_font=("Arial", 12), command=lambda e: self.update_dashboard())
+        filter_combo.pack(side="left")
 
         self.content_frame = ctk.CTkScrollableFrame(self, fg_color="transparent", corner_radius=0)
-        self.content_frame.pack(fill="both", expand=True)
+        self.content_frame.pack(fill="both", expand=True, padx=20, pady=20)
 
         self.update_dashboard()
 
     def clear_canvases(self):
-        for canvas in self.canvases:
-            canvas.get_tk_widget().destroy()
+        for canvas in self.canvases: canvas.get_tk_widget().destroy()
         self.canvases.clear()
-        for widget in self.content_frame.winfo_children():
-            widget.destroy()
+        for widget in self.content_frame.winfo_children(): widget.destroy()
 
     def update_dashboard(self):
         self.clear_canvases()
-        
         filtered_data = []
+        filtered_ratings = []
         filter_val = self.filter_var.get()
         today = datetime.now()
 
+        # กรองข้อมูล Bookings
         for b in self.bookings_cache:
             date_str = b.get('Date', '')
             try:
                 b_date = datetime.strptime(date_str, "%Y-%m-%d")
-                if filter_val == "เดือนนี้ (This Month)":
-                    if b_date.month != today.month or b_date.year != today.year: continue
-                elif filter_val == "30 วันที่ผ่านมา (Last 30 Days)":
-                    if (today - b_date).days > 30: continue
-            except:
-                pass 
+                if filter_val == "This Month" and (b_date.month != today.month or b_date.year != today.year): continue
+                elif filter_val == "Last 30 Days" and (today - b_date).days > 30: continue
+            except: pass 
             filtered_data.append(b)
 
-        if not filtered_data:
-            ctk.CTkLabel(self.content_frame, text="📭 ไม่พบข้อมูลการจองในช่วงเวลานี้", font=("Arial", 16), text_color="#A0A0A0").pack(pady=50)
+        # กรองข้อมูล Ratings (อิงจาก Timestamp)
+        for r in self.ratings_cache:
+            ts_str = r.get('Timestamp', '')
+            try:
+                r_date = datetime.strptime(ts_str, "%m/%d/%Y %H:%M:%S")
+                if filter_val == "This Month" and (r_date.month != today.month or r_date.year != today.year): continue
+                elif filter_val == "Last 30 Days" and (today - r_date).days > 30: continue
+            except: pass
+            filtered_ratings.append(r)
+
+        if not filtered_data and self.current_tab != "Ratings":
+            ctk.CTkLabel(self.content_frame, text="📭 ไม่พบข้อมูลในช่วงเวลานี้", font=("Arial", 16), text_color="#A0A0A0").pack(pady=100)
             return
 
-        if self.current_tab == "Overview":
-            self.render_overview(filtered_data)
-        elif self.current_tab == "Users":
-            self.render_users(filtered_data)
-        elif self.current_tab == "Times":
-            self.render_times(filtered_data)
+        if self.current_tab == "Overview": self.render_overview(filtered_data)
+        elif self.current_tab == "Users": self.render_users(filtered_data)
+        elif self.current_tab == "Times": self.render_times(filtered_data)
+        elif self.current_tab == "Ratings": self.render_ratings(filtered_ratings)
 
     def embed_plot(self, fig, parent):
         canvas = FigureCanvasTkAgg(fig, master=parent)
         canvas.draw()
         widget = canvas.get_tk_widget()
-        widget.pack(fill="both", expand=True, padx=10, pady=10)
+        widget.pack(fill="both", expand=True, padx=5, pady=5)
         self.canvases.append(canvas)
+
+    def create_premium_card(self, parent, height=None):
+        card = ctk.CTkFrame(parent, fg_color="#FFFFFF", corner_radius=15, border_width=1, border_color="#E4E7EB")
+        if height: 
+            card.configure(height=height)
+            card.pack_propagate(False)
+        return card
+
+    def format_chart_spines(self, ax):
+        ax.spines['top'].set_visible(False)
+        ax.spines['right'].set_visible(False)
+        ax.spines['left'].set_visible(False)
+        ax.spines['bottom'].set_color('#E4E7EB')
+        ax.tick_params(axis='y', length=0) 
+        ax.tick_params(axis='x', color='#E4E7EB')
 
     # ==================== TAB 1: ภาพรวม (Overview) ====================
     def render_overview(self, data):
@@ -197,20 +229,27 @@ class DashboardPage(ctk.CTkFrame):
         unique_users = len(set([b.get('Name', '') for b in data if b.get('Name')]))
         unique_machines = len(set([b.get('Machine', '') for b in data if b.get('Machine')]))
 
-        def create_stat_card(parent, title, value, color):
-            card = ctk.CTkFrame(parent, fg_color="#FFFFFF", corner_radius=12, border_width=1, border_color="#DADCE0", height=100)
-            card.pack(side="left", fill="x", expand=True, padx=5)
-            card.pack_propagate(False)
-            ctk.CTkLabel(card, text=title, font=("Arial", 14, "bold"), text_color="#5F6368").pack(anchor="w", padx=20, pady=(15, 0))
-            ctk.CTkLabel(card, text=str(value), font=("Arial", 32, "bold"), text_color=color).pack(anchor="w", padx=20)
+        def create_stat_card(parent, title, value, icon, accent_color):
+            card = self.create_premium_card(parent, height=120)
+            card.pack(side="left", fill="x", expand=True, padx=8)
+            
+            top_frame = ctk.CTkFrame(card, fg_color="transparent")
+            top_frame.pack(fill="x", padx=20, pady=(20, 5))
+            
+            icon_bg = ctk.CTkFrame(top_frame, fg_color=f"{accent_color}1A", corner_radius=8, width=32, height=32)
+            icon_bg.pack(side="left")
+            icon_bg.pack_propagate(False)
+            ctk.CTkLabel(icon_bg, text=icon, font=("Arial", 16), text_color=accent_color).pack(expand=True)
+            
+            ctk.CTkLabel(top_frame, text=title, font=("Arial", 13, "bold"), text_color="#5F6368").pack(side="left", padx=10)
+            ctk.CTkLabel(card, text=f"{value:,}", font=("Arial", 36, "bold"), text_color="#202124").pack(anchor="w", padx=20, pady=(0, 10))
 
-        create_stat_card(cards_frame, "📝 จำนวนการจองทั้งหมด", total_bookings, "#1A73E8")
-        create_stat_card(cards_frame, "👥 ผู้ใช้งานในระบบ", unique_users, "#1E8E3E")
-        create_stat_card(cards_frame, "🛠 เครื่องมือที่ถูกใช้งาน", unique_machines, "#D93025")
+        create_stat_card(cards_frame, "Total Bookings", total_bookings, "📅", "#1A73E8")
+        create_stat_card(cards_frame, "Active Users", unique_users, "👥", "#10B981")
+        create_stat_card(cards_frame, "Machines Used", unique_machines, "⚙️", "#F59E0B")
 
-        chart_frame = ctk.CTkFrame(self.content_frame, fg_color="#FFFFFF", corner_radius=12, border_width=1, border_color="#DADCE0", height=400)
-        chart_frame.pack(fill="x", pady=5)
-        chart_frame.pack_propagate(False)
+        chart_card = self.create_premium_card(self.content_frame, height=450)
+        chart_card.pack(fill="x", padx=8)
 
         machine_counts = Counter([b.get('Machine', 'Unknown') for b in data if b.get('Machine')])
         top_machines = machine_counts.most_common(5)
@@ -219,65 +258,63 @@ class DashboardPage(ctk.CTkFrame):
             labels = [m[0] for m in top_machines]
             values = [m[1] for m in top_machines]
             
-            fig, ax = plt.subplots(figsize=(8, 4), facecolor='#FFFFFF')
-            bars = ax.barh(labels, values, color='#4A90E2', edgecolor='none', height=0.6)
-            ax.set_title('🏆 Top 5 เครื่องมือที่ถูกใช้งานมากที่สุด', pad=20, weight='bold')
-            ax.set_xlabel('จำนวนครั้งที่จอง', color='#5F6368')
+            fig, ax = plt.subplots(figsize=(8, 4.5), facecolor='#FFFFFF')
+            bars = ax.barh(labels, values, color='#3B82F6', edgecolor='none', height=0.5, alpha=0.85)
+            
+            ax.set_title('Top Equipment Usage', pad=25, weight='bold', loc='left', fontsize=16)
             ax.invert_yaxis()
+            self.format_chart_spines(ax)
+            ax.grid(axis='x', linestyle='-', alpha=0.3, color='#E4E7EB')
             
             for bar in bars:
-                ax.text(bar.get_width() + 0.2, bar.get_y() + bar.get_height()/2, f'{int(bar.get_width())}', 
-                        va='center', ha='left', fontsize=10, color='#333333', weight='bold')
+                width = bar.get_width()
+                ax.text(width + (max(values)*0.01), bar.get_y() + bar.get_height()/2, f' {int(width)}', 
+                        va='center', ha='left', fontsize=11, color='#1A73E8', weight='bold')
             
-            ax.spines['top'].set_visible(False)
-            ax.spines['right'].set_visible(False)
-            ax.spines['bottom'].set_color('#DADCE0')
-            ax.spines['left'].set_color('#DADCE0')
             fig.tight_layout()
-            
-            self.embed_plot(fig, chart_frame)
+            self.embed_plot(fig, chart_card)
 
-    # ==================== TAB 2: พฤติกรรมผู้ใช้ (User Insights & Interactive) ====================
+    # ==================== TAB 2: พฤติกรรมผู้ใช้ (Users) ====================
     def render_users(self, data):
         row_frame = ctk.CTkFrame(self.content_frame, fg_color="transparent")
-        row_frame.pack(fill="x", pady=5)
+        row_frame.pack(fill="x")
         
-        # ---------------- ส่วน Top 5 Users (มี Tooltip) ----------------
-        left_frame = ctk.CTkFrame(row_frame, fg_color="#FFFFFF", corner_radius=12, border_width=1, border_color="#DADCE0")
-        left_frame.pack(side="left", fill="both", expand=True, padx=(0, 10))
+        left_card = self.create_premium_card(row_frame)
+        left_card.pack(side="left", fill="both", expand=True, padx=(8, 10))
         
-        ctk.CTkLabel(left_frame, text="👑 Top 5 ผู้ใช้งานที่จองเยอะที่สุด", font=("Arial", 16, "bold"), text_color="#1A73E8").pack(pady=15)
+        head_f = ctk.CTkFrame(left_card, fg_color="transparent")
+        head_f.pack(fill="x", padx=25, pady=20)
+        ctk.CTkLabel(head_f, text="Top Users Leaderboard", font=("Arial", 16, "bold"), text_color="#202124").pack(side="left")
+        ctk.CTkLabel(head_f, text="Hover for details", font=("Arial", 11), text_color="#9CA3AF").pack(side="right")
         
         user_counts = Counter([b.get('Name', 'Unknown') for b in data if b.get('Name')])
         top_users = user_counts.most_common(5)
         
         for i, (name, count) in enumerate(top_users):
-            medals = ["🥇", "🥈", "🥉", "4️⃣", "5️⃣"]
-            item_frame = ctk.CTkFrame(left_frame, fg_color="#F8F9FA", corner_radius=8, cursor="hand2") # เปลี่ยน cursor เป็นรูปมือ
-            item_frame.pack(fill="x", padx=20, pady=5)
+            medals = ["🥇", "🥈", "🥉", "4", "5"]
+            bg_color = "#F8FAFC" if i % 2 == 0 else "#FFFFFF" 
             
-            lbl_name = ctk.CTkLabel(item_frame, text=f"{medals[i]}  {name}", font=("Arial", 14, "bold"), text_color="#3C4043", cursor="hand2")
-            lbl_name.pack(side="left", padx=15, pady=10)
-            lbl_count = ctk.CTkLabel(item_frame, text=f"{count} ครั้ง", font=("Arial", 14, "bold"), text_color="#D93025", cursor="hand2")
-            lbl_count.pack(side="right", padx=15, pady=10)
+            item_frame = ctk.CTkFrame(left_card, fg_color=bg_color, corner_radius=8, cursor="hand2", height=50)
+            item_frame.pack(fill="x", padx=20, pady=4)
+            item_frame.pack_propagate(False)
+            
+            rank_l = ctk.CTkLabel(item_frame, text=medals[i], font=("Arial", 16), width=30)
+            rank_l.pack(side="left", padx=(10, 5))
+            
+            lbl_name = ctk.CTkLabel(item_frame, text=name, font=("Arial", 14, "bold"), text_color="#374151")
+            lbl_name.pack(side="left", padx=5)
+            
+            lbl_count = ctk.CTkLabel(item_frame, text=f"{count} bookings", font=("Arial", 13, "bold"), text_color="#3B82F6")
+            lbl_count.pack(side="right", padx=15)
 
-            # ค้นหาข้อมูลผู้ใช้นี้จาก Users Cache
             u_info = next((u for u in self.users_cache if u.get('Name') == name), None)
-            if u_info:
-                # ประกอบร่างข้อความ Tooltip
-                tt_text = f"🆔 รหัส: {u_info.get('UserID', '-')}\n🎓 ชั้นปี: {u_info.get('Year', '-')}\n👨‍🏫 อ.ที่ปรึกษา: {u_info.get('Advisor', '-')}\nสถานะ: {u_info.get('Status', 'Active')}"
-            else:
-                tt_text = "⚠️ ไม่พบข้อมูลโปรไฟล์\nในฐานข้อมูลผู้ใช้"
+            if u_info: tt_text = f"ID: {u_info.get('UserID', '-')}\nYear: {u_info.get('Year', '-')}\nAdvisor: {u_info.get('Advisor', '-')}\nStatus: {u_info.get('Status', 'Active')}"
+            else: tt_text = "No profile data available."
             
-            # ผูก Tooltip เข้ากับกล่องและข้อความ
-            ToolTip(item_frame, tt_text)
-            ToolTip(lbl_name, tt_text)
-            ToolTip(lbl_count, tt_text)
+            ToolTip(item_frame, tt_text); ToolTip(lbl_name, tt_text); ToolTip(rank_l, tt_text); ToolTip(lbl_count, tt_text)
 
-        # ---------------- ส่วน Interactive Pie Chart ----------------
-        right_frame = ctk.CTkFrame(row_frame, fg_color="#FFFFFF", corner_radius=12, border_width=1, border_color="#DADCE0", height=400)
-        right_frame.pack(side="right", fill="both", expand=True)
-        right_frame.pack_propagate(False)
+        right_card = self.create_premium_card(row_frame, height=400)
+        right_card.pack(side="right", fill="both", expand=True, padx=(10, 8))
         
         year_counts = Counter([b.get('Year/Position', 'ไม่ได้ระบุ') for b in data if b.get('Year/Position')])
         
@@ -286,41 +323,37 @@ class DashboardPage(ctk.CTkFrame):
             processed_counts = {}
             others = 0
             for k, v in year_counts.items():
-                if v / total < 0.03: others += v
+                if v / total < 0.04: others += v
                 else: processed_counts[k] = v
-            if others > 0: processed_counts['อื่นๆ (Others)'] = others
+            if others > 0: processed_counts['Others'] = others
 
             labels = list(processed_counts.keys())
             values = list(processed_counts.values())
             
             fig, ax = plt.subplots(figsize=(7, 4), facecolor='#FFFFFF')
-            colors = ['#1A73E8', '#34A853', '#FBBC05', '#EA4335', '#8E24AA', '#F29900', '#00ACC1', '#FF4081', '#9E9E9E']
+            colors = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#14B8A6', '#F43F5E', '#94A3B8']
             
             wedges, texts, autotexts = ax.pie(values, autopct='%1.1f%%', startangle=90, colors=colors, 
-                                              textprops=dict(color="w", weight="bold", fontsize=10),
-                                              pctdistance=0.75, wedgeprops=dict(width=0.4, edgecolor='w'))
+                                              textprops=dict(color="w", weight="bold", fontsize=9),
+                                              pctdistance=0.75, wedgeprops=dict(width=0.4, edgecolor='w', linewidth=2))
             
-            ax.legend(wedges, labels, title="ระดับ/ตำแหน่ง", loc="center left", bbox_to_anchor=(1, 0, 0.5, 1), frameon=False)
-            ax.set_title('สัดส่วนการจองแบ่งตามชั้นปี/ตำแหน่ง\n(เอาเมาส์ชี้ที่กราฟเพื่อดูรายละเอียด)', pad=20, weight='bold', fontsize=12)
+            ax.legend(wedges, labels, title="User Role", loc="center left", bbox_to_anchor=(1, 0, 0.5, 1), frameon=False)
+            ax.set_title('Booking Distribution by Role', pad=20, weight='bold', loc='left', fontsize=14)
             
-            # --- สร้างระบบ Hover สำหรับ Matplotlib ---
-            # สร้างกล่องข้อความเปล่าๆ ซ่อนไว้ก่อน
             annot = ax.annotate("", xy=(0,0), xytext=(20, 20), textcoords="offset points",
-                                bbox=dict(boxstyle="round4,pad=0.5", fc="white", ec="#DADCE0", alpha=0.95),
-                                arrowprops=dict(arrowstyle="-|>", connectionstyle="arc3,rad=-0.2", fc="gray"))
+                                bbox=dict(boxstyle="round4,pad=0.6", fc="#202124", ec="none", alpha=0.9),
+                                arrowprops=dict(arrowstyle="-|>", connectionstyle="arc3,rad=-0.2", fc="#202124", ec="none"),
+                                color="white", weight="bold")
             annot.set_visible(False)
 
             def hover(event):
                 vis = annot.get_visible()
                 if event.inaxes == ax:
                     for i, wedge in enumerate(wedges):
-                        # เช็คว่าเมาส์ชี้โดนชิ้นส่วนไหน
-                        cont, ind = wedge.contains(event)
+                        cont, _ = wedge.contains(event)
                         if cont:
                             annot.xy = (event.xdata, event.ydata)
-                            percent = (values[i] / total) * 100
-                            # ใส่ข้อความบอกรายละเอียดครบถ้วน
-                            annot.set_text(f"{labels[i]}\n{values[i]} ครั้ง ({percent:.1f}%)")
+                            annot.set_text(f"{labels[i]}\n{values[i]} Bookings")
                             annot.set_visible(True)
                             fig.canvas.draw_idle()
                             return
@@ -328,34 +361,32 @@ class DashboardPage(ctk.CTkFrame):
                     annot.set_visible(False)
                     fig.canvas.draw_idle()
 
-            # ผูก Event เมาส์ขยับ เข้ากับฟังก์ชัน
             fig.canvas.mpl_connect("motion_notify_event", hover)
-            
             fig.tight_layout()
-            self.embed_plot(fig, right_frame)
+            self.embed_plot(fig, right_card)
 
-    # ==================== TAB 3: ช่วงเวลายอดฮิต ====================
+    # ==================== TAB 3: ช่วงเวลายอดฮิต (Times) ====================
     def switch_time_mode(self, mode):
-        self.time_stat_type = "slots" if "ช่วงเวลาที่ถูกจอง" in mode else "timestamp"
+        self.time_stat_type = "slots" if "Time Slots" in mode else "timestamp"
         self.update_dashboard()
 
     def render_times(self, data):
         toggle_frame = ctk.CTkFrame(self.content_frame, fg_color="transparent")
-        toggle_frame.pack(fill="x", pady=(0, 10))
+        toggle_frame.pack(fill="x", pady=(0, 10), padx=8)
         
-        seg_btn = ctk.CTkSegmentedButton(toggle_frame, values=["ช่วงเวลาที่ถูกจอง (Time Slots)", "เวลาที่ทำรายการ (Booking Timestamp)"], 
-                                         command=self.switch_time_mode, font=("Arial", 13, "bold"), selected_color="#1A73E8", selected_hover_color="#174EA6")
-        seg_btn.pack(pady=5)
-        seg_btn.set("ช่วงเวลาที่ถูกจอง (Time Slots)" if self.time_stat_type == "slots" else "เวลาที่ทำรายการ (Booking Timestamp)")
+        seg_btn = ctk.CTkSegmentedButton(toggle_frame, values=["Usage Time Slots", "Booking Timestamps"], 
+                                         command=self.switch_time_mode, font=("Arial", 13, "bold"), 
+                                         selected_color="#3B82F6", selected_hover_color="#2563EB", unselected_color="#FFFFFF")
+        seg_btn.pack(anchor="w", pady=5)
+        seg_btn.set("Usage Time Slots" if self.time_stat_type == "slots" else "Booking Timestamps")
 
-        chart_frame = ctk.CTkFrame(self.content_frame, fg_color="#FFFFFF", corner_radius=12, border_width=1, border_color="#DADCE0", height=450)
-        chart_frame.pack(fill="x", pady=5)
-        chart_frame.pack_propagate(False)
+        chart_card = self.create_premium_card(self.content_frame, height=480)
+        chart_card.pack(fill="x", padx=8, pady=5)
         
         if self.time_stat_type == "slots":
             counts = Counter([b.get('Time', 'Unknown') for b in data if b.get('Time') and '-' in b.get('Time', '')])
-            title_text = '🔥 ช่วงเวลา (Time Slots) ที่ถูกใช้เครื่องมือมากที่สุด'
-            x_label = 'ช่วงเวลา'
+            title_text = 'Usage Time Slots Popularity'
+            x_label = 'Time Slots'
         else:
             hours = []
             for b in data:
@@ -364,12 +395,11 @@ class DashboardPage(ctk.CTkFrame):
                     try:
                         time_part = ts.split(' ')[-1] 
                         h_str = time_part.split(':')[0]
-                        if h_str.isdigit():
-                            hours.append(f"{int(h_str):02d}:00")
+                        if h_str.isdigit(): hours.append(f"{int(h_str):02d}:00")
                     except: pass
             counts = Counter(hours)
-            title_text = '⏳ ช่วงเวลาที่ผู้ใช้ "กดทำรายการจอง" มากที่สุด (Peak Booking Hours)'
-            x_label = 'เวลาที่กดทำรายการ'
+            title_text = 'When do users book? (Peak Activity)'
+            x_label = 'Hour of Day'
 
         sorted_times = sorted(counts.items(), key=lambda x: x[0])
         
@@ -380,28 +410,95 @@ class DashboardPage(ctk.CTkFrame):
             fig, ax = plt.subplots(figsize=(10, 5), facecolor='#FFFFFF')
             
             max_val = max(values)
-            colors = ['#EA4335' if val == max_val else '#4A90E2' for val in values]
+            colors = ['#F43F5E' if val == max_val else '#E2E8F0' for val in values]
             
-            bars = ax.bar(labels, values, color=colors, width=0.6, edgecolor='none', alpha=0.9)
+            bars = ax.bar(labels, values, color=colors, width=0.5, edgecolor='none')
             
-            ax.set_title(title_text, pad=20, weight='bold', fontsize=14)
-            ax.set_ylabel('จำนวนครั้ง', color='#5F6368')
-            ax.set_xlabel(x_label, color='#5F6368')
-            
+            ax.set_title(title_text, pad=25, weight='bold', fontsize=16, loc='left')
+            self.format_chart_spines(ax)
+            ax.grid(axis='y', linestyle='-', alpha=0.3, color='#E4E7EB')
             plt.xticks(rotation=45, ha='right')
             
             for bar in bars:
                 height = bar.get_height()
-                ax.text(bar.get_x() + bar.get_width()/2., height + 0.1, f'{int(height)}', 
-                        ha='center', va='bottom', fontsize=11, color='#333333', weight='bold')
+                color = '#F43F5E' if height == max_val else '#64748B'
+                ax.text(bar.get_x() + bar.get_width()/2., height + (max_val*0.02), f'{int(height)}', 
+                        ha='center', va='bottom', fontsize=11, color=color, weight='bold')
             
-            ax.spines['top'].set_visible(False)
-            ax.spines['right'].set_visible(False)
-            ax.spines['left'].set_color('#DADCE0')
-            ax.spines['bottom'].set_color('#DADCE0')
-            ax.grid(axis='y', linestyle='--', alpha=0.4) 
             fig.tight_layout()
-            
-            self.embed_plot(fig, chart_frame)
+            self.embed_plot(fig, chart_card)
         else:
-            ctk.CTkLabel(chart_frame, text="ไม่พบข้อมูลเพียงพอสำหรับสร้างกราฟ", font=("Arial", 14), text_color="#A0A0A0").pack(expand=True)
+            ctk.CTkLabel(chart_card, text="Insufficient data to generate chart", font=("Arial", 14), text_color="#A0A0A0").pack(expand=True)
+
+    # ==================== TAB 4: ความพึงพอใจ (Ratings) ====================
+    def render_ratings(self, ratings_data):
+        if not ratings_data:
+            ctk.CTkLabel(self.content_frame, text="📭 ยังไม่มีข้อมูลการให้คะแนนจากผู้ใช้", font=("Arial", 16), text_color="#A0A0A0").pack(pady=100)
+            return
+
+        scores = []
+        for r in ratings_data:
+            try: scores.append(int(r.get('Score', 0)))
+            except: pass
+            
+        scores = [s for s in scores if 1 <= s <= 5] # กรองเฉพาะ 1-5 ดาว
+        
+        if not scores:
+            ctk.CTkLabel(self.content_frame, text="📭 ข้อมูลคะแนนไม่ถูกต้อง", font=("Arial", 16), text_color="#A0A0A0").pack(pady=100)
+            return
+
+        total_ratings = len(scores)
+        avg_score = sum(scores) / total_ratings
+
+        cards_frame = ctk.CTkFrame(self.content_frame, fg_color="transparent")
+        cards_frame.pack(fill="x", pady=(0, 20))
+
+        # สรุปคะแนนเฉลี่ย
+        avg_card = self.create_premium_card(cards_frame, height=130)
+        avg_card.pack(side="left", fill="both", expand=True, padx=8)
+        ctk.CTkLabel(avg_card, text="Overall Satisfaction Score", font=("Arial", 14, "bold"), text_color="#5F6368").pack(anchor="w", padx=20, pady=(20, 5))
+        
+        score_frame = ctk.CTkFrame(avg_card, fg_color="transparent")
+        score_frame.pack(anchor="w", padx=20)
+        ctk.CTkLabel(score_frame, text=f"{avg_score:.1f}", font=("Arial", 42, "bold"), text_color="#202124").pack(side="left")
+        ctk.CTkLabel(score_frame, text=" / 5.0", font=("Arial", 20, "bold"), text_color="#9CA3AF").pack(side="left", pady=(15,0))
+        
+        # แสดงดาวตามคะแนนเฉลี่ย
+        stars = "⭐" * int(round(avg_score))
+        ctk.CTkLabel(avg_card, text=stars, font=("Arial", 18), text_color="#F59E0B").pack(anchor="w", padx=20)
+
+        # สรุปจำนวนคนให้คะแนน
+        count_card = self.create_premium_card(cards_frame, height=130)
+        count_card.pack(side="left", fill="both", expand=True, padx=8)
+        ctk.CTkLabel(count_card, text="Total Ratings Received", font=("Arial", 14, "bold"), text_color="#5F6368").pack(anchor="w", padx=20, pady=(20, 5))
+        ctk.CTkLabel(count_card, text=f"{total_ratings:,}", font=("Arial", 42, "bold"), text_color="#3B82F6").pack(anchor="w", padx=20)
+        ctk.CTkLabel(count_card, text="Feedbacks", font=("Arial", 14), text_color="#9CA3AF").pack(anchor="w", padx=20)
+
+        # กราฟแท่งแสดงสัดส่วนคะแนน
+        chart_card = self.create_premium_card(self.content_frame, height=400)
+        chart_card.pack(fill="x", padx=8)
+
+        score_counts = Counter(scores)
+        # บังคับให้มี 5 ดาว ถึง 1 ดาว เสมอ แม้บางดาวจะไม่มีคนโหวต
+        labels = ["5 Stars ⭐", "4 Stars ⭐", "3 Stars ⭐", "2 Stars ⭐", "1 Star ⭐"]
+        values = [score_counts.get(5, 0), score_counts.get(4, 0), score_counts.get(3, 0), score_counts.get(2, 0), score_counts.get(1, 0)]
+        
+        fig, ax = plt.subplots(figsize=(8, 4), facecolor='#FFFFFF')
+        
+        # สีแยกตามระดับความพึงพอใจ
+        colors = ['#10B981', '#34D399', '#FBBF24', '#F87171', '#EF4444']
+        bars = ax.barh(labels, values, color=colors, edgecolor='none', height=0.5, alpha=0.9)
+        
+        ax.set_title('Score Distribution', pad=25, weight='bold', loc='left', fontsize=16)
+        ax.invert_yaxis() # เอา 5 ดาวไว้บนสุด
+        self.format_chart_spines(ax)
+        ax.grid(axis='x', linestyle='-', alpha=0.3, color='#E4E7EB')
+        
+        for bar in bars:
+            width = bar.get_width()
+            if width > 0:
+                ax.text(width + (max(values)*0.01), bar.get_y() + bar.get_height()/2, f' {int(width)}', 
+                        va='center', ha='left', fontsize=11, color='#4B5563', weight='bold')
+        
+        fig.tight_layout()
+        self.embed_plot(fig, chart_card)

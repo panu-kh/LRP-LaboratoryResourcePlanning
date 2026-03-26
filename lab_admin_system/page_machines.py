@@ -5,7 +5,7 @@ from PIL import Image
 from io import BytesIO
 import csv
 from datetime import datetime
-import os # ✅ นำเข้า os สำหรับดึง .env
+import os 
 
 class MachinesPage(ctk.CTkFrame):
     def __init__(self, parent, spreadsheet):
@@ -13,10 +13,10 @@ class MachinesPage(ctk.CTkFrame):
         
         self.spreadsheet = spreadsheet
         self.current_overlay = None
+        # โครงสร้าง Schema ล่าสุด: Name, Floor, Slots, Color, Image, Status, WarnDays, WarnTime, WarnMsg, WarnCol
         self.headers = ["Name", "Floor", "Slots", "Color", "Image", "Status", "WarnDays", "WarnTime", "WarnMsg", "WarnCol"]
         self.time_slots = ["09:00", "10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00"]
         
-        # ✅ ดึง API Key จาก .env
         self.IMAGE_API_KEY = os.getenv("IMGBB_API_KEY") 
         self.IMAGE_API_URL = "https://api.imgbb.com/1/upload"
         self.image_cache = {}
@@ -230,9 +230,11 @@ class MachinesPage(ctk.CTkFrame):
             if loading_lbl.winfo_exists(): loading_lbl.destroy()
             ctk.CTkLabel(log_frame, text=f"⚠️ ดึงข้อมูลไม่สำเร็จ:\n{e}", text_color="#D93025").pack(pady=50)
 
+    # ==================== กล่องแก้ไขเครื่องมือ (อัปเดตฟิลด์แจ้งเตือน) ====================
     def show_machine_form(self, machine_data=None, row_num=None):
         self.close_overlay()
-        self.current_overlay = ctk.CTkFrame(self, width=500, height=650, fg_color="#FFFFFF", corner_radius=12, border_width=1, border_color="#DADCE0")
+        # เปลี่ยนใช้ Frame ภายนอกขนาดคงที่ และภายในเป็น ScrollableFrame
+        self.current_overlay = ctk.CTkFrame(self, width=550, height=700, fg_color="#FFFFFF", corner_radius=12, border_width=1, border_color="#DADCE0")
         self.current_overlay.place(relx=0.5, rely=0.5, anchor="center")
         self.current_overlay.pack_propagate(False)
 
@@ -244,22 +246,24 @@ class MachinesPage(ctk.CTkFrame):
         ctk.CTkLabel(head_frame, text=title_text, font=("Arial", 18, "bold"), text_color="#202124").pack(side="left", padx=20, pady=10)
         ctk.CTkButton(head_frame, text="✖", width=30, height=30, fg_color="transparent", text_color="#5F6368", hover_color="#F1F3F4", command=self.close_overlay).pack(side="right", padx=10)
 
-        form_frame = ctk.CTkFrame(self.current_overlay, fg_color="transparent")
-        form_frame.pack(fill="both", expand=True, padx=20, pady=10)
+        # ใช้งาน CTkScrollableFrame เพื่อรองรับกล่องข้อมูลที่ยาวขึ้น
+        form_frame = ctk.CTkScrollableFrame(self.current_overlay, fg_color="transparent")
+        form_frame.pack(fill="both", expand=True, padx=10, pady=5)
 
-        ctk.CTkLabel(form_frame, text="ชื่อเครื่องมือ (Name):", font=("Arial", 12, "bold"), text_color="#5F6368").pack(anchor="w")
+        # -- ข้อมูลพื้นฐาน --
+        ctk.CTkLabel(form_frame, text="ชื่อเครื่องมือ (Name):", font=("Arial", 12, "bold"), text_color="#5F6368").pack(anchor="w", padx=10)
         name_entry = ctk.CTkEntry(form_frame, height=35, fg_color="#F8F9FA", border_color="#DADCE0")
-        name_entry.pack(fill="x", pady=(0, 10))
+        name_entry.pack(fill="x", padx=10, pady=(0, 10))
         if is_edit: name_entry.insert(0, machine_data.get('Name', ''))
 
-        ctk.CTkLabel(form_frame, text="สถานที่/ชั้น (Floor):", font=("Arial", 12, "bold"), text_color="#5F6368").pack(anchor="w")
+        ctk.CTkLabel(form_frame, text="สถานที่/ชั้น (Floor):", font=("Arial", 12, "bold"), text_color="#5F6368").pack(anchor="w", padx=10)
         floor_entry = ctk.CTkEntry(form_frame, height=35, fg_color="#F8F9FA", border_color="#DADCE0")
-        floor_entry.pack(fill="x", pady=(0, 10))
+        floor_entry.pack(fill="x", padx=10, pady=(0, 10))
         if is_edit: floor_entry.insert(0, machine_data.get('Floor', ''))
 
-        ctk.CTkLabel(form_frame, text="รูปแบบเวลาจอง (Slots) คั่นด้วยลูกน้ำ (,):", font=("Arial", 12, "bold"), text_color="#1A73E8").pack(anchor="w")
+        ctk.CTkLabel(form_frame, text="รูปแบบเวลาจอง (Slots) คั่นด้วย (,):", font=("Arial", 12, "bold"), text_color="#1A73E8").pack(anchor="w", padx=10)
         slots_entry = ctk.CTkEntry(form_frame, height=35, fg_color="#F8F9FA", border_color="#1A73E8", placeholder_text="เช่น 09:00-12:00, 13:00-16:00")
-        slots_entry.pack(fill="x", pady=(0, 10))
+        slots_entry.pack(fill="x", padx=10, pady=(0, 10))
         if is_edit: 
             m_slots_val = machine_data.get('Slots', '')
             if not m_slots_val: m_slots_val = "09:00-10:00, 10:00-11:00, 11:00-12:00, 13:00-14:00, 14:00-15:00, 15:00-16:00"
@@ -267,20 +271,78 @@ class MachinesPage(ctk.CTkFrame):
         else: 
             slots_entry.insert(0, "09:00-10:00, 10:00-11:00, 11:00-12:00, 13:00-14:00, 14:00-15:00, 15:00-16:00")
 
-        ctk.CTkLabel(form_frame, text="สถานะ (Status):", font=("Arial", 12, "bold"), text_color="#5F6368").pack(anchor="w")
+        ctk.CTkLabel(form_frame, text="สถานะ (Status):", font=("Arial", 12, "bold"), text_color="#5F6368").pack(anchor="w", padx=10)
         status_combo = ctk.CTkComboBox(form_frame, values=["Active", "Maintenance", "Closed"], height=35, fg_color="#FFFFFF", border_color="#DADCE0")
-        status_combo.pack(fill="x", pady=(0, 10))
+        status_combo.pack(fill="x", padx=10, pady=(0, 15))
         if is_edit: status_combo.set(machine_data.get('Status', 'Active'))
         else: status_combo.set("Active")
 
-        ctk.CTkLabel(form_frame, text="ข้อความแจ้งเตือน (WarnMsg):", font=("Arial", 12, "bold"), text_color="#5F6368").pack(anchor="w")
-        warn_entry = ctk.CTkEntry(form_frame, height=35, fg_color="#F8F9FA", border_color="#DADCE0")
-        warn_entry.pack(fill="x", pady=(0, 10))
+        # -- โซนตั้งค่าการแจ้งเตือน (Warn Settings) --
+        warn_zone = ctk.CTkFrame(form_frame, fg_color="#FFF8E1", corner_radius=8, border_width=1, border_color="#FDE68A")
+        warn_zone.pack(fill="x", padx=10, pady=(0, 15), ipady=10)
+        
+        ctk.CTkLabel(warn_zone, text="⚠️ ตั้งค่าการแจ้งเตือนเฉพาะวัน/เวลา (Warning Settings)", font=("Arial", 13, "bold"), text_color="#D97706").pack(anchor="w", padx=15, pady=(10, 5))
+        
+        # 1. เลือกวัน (WarnDays) 0=Sun, 1=Mon ... 6=Sat
+        ctk.CTkLabel(warn_zone, text="แสดงคำเตือนในวัน:", font=("Arial", 12), text_color="#5F6368").pack(anchor="w", padx=15)
+        days_frame = ctk.CTkFrame(warn_zone, fg_color="transparent")
+        days_frame.pack(fill="x", padx=15, pady=5)
+        
+        day_names = [("อา", "0"), ("จ", "1"), ("อ", "2"), ("พ", "3"), ("พฤ", "4"), ("ศ", "5"), ("ส", "6")]
+        self.warn_day_vars = {}
+        
+        existing_days = []
+        if is_edit and machine_data.get('WarnDays'):
+            existing_days = [d.strip() for d in str(machine_data.get('WarnDays')).split(',')]
+
+        for d_name, d_val in day_names:
+            var = ctk.StringVar(value=d_val if d_val in existing_days else "")
+            self.warn_day_vars[d_val] = var
+            cb = ctk.CTkCheckBox(days_frame, text=d_name, variable=var, onvalue=d_val, offvalue="",
+                                 width=45, checkbox_width=18, checkbox_height=18, text_color="#5F6368", fg_color="#F59E0B")
+            cb.pack(side="left", padx=5)
+
+        # 2. เลือกเวลา (WarnTime)
+        time_row = ctk.CTkFrame(warn_zone, fg_color="transparent")
+        time_row.pack(fill="x", padx=15, pady=5)
+        
+        ctk.CTkLabel(time_row, text="ในรอบเวลา (WarnTime):", font=("Arial", 12), text_color="#5F6368").pack(side="left")
+        warn_time_combo = ctk.CTkComboBox(time_row, values=["ทุกรอบเวลา (All)", *self.time_slots, "09:00-12:00", "13:00-16:00"], width=150, fg_color="#FFFFFF", border_color="#DADCE0")
+        warn_time_combo.pack(side="left", padx=10)
+        
+        if is_edit and machine_data.get('WarnTime'):
+            warn_time_combo.set(machine_data.get('WarnTime'))
+        else:
+            warn_time_combo.set("ทุกรอบเวลา (All)")
+
+        # 3. สีข้อความ (WarnCol)
+        ctk.CTkLabel(time_row, text="สีแจ้งเตือน:", font=("Arial", 12), text_color="#5F6368").pack(side="left", padx=(10, 0))
+        color_choices = {"สีแดง (Red)": "#FF5555", "สีส้ม (Orange)": "#F59E0B", "สีน้ำเงิน (Blue)": "#1A73E8"}
+        warn_col_combo = ctk.CTkComboBox(time_row, values=list(color_choices.keys()), width=120, fg_color="#FFFFFF", border_color="#DADCE0")
+        warn_col_combo.pack(side="left", padx=10)
+        
+        if is_edit and machine_data.get('WarnCol'):
+            saved_col = machine_data.get('WarnCol')
+            found = False
+            for k, v in color_choices.items():
+                if v == saved_col:
+                    warn_col_combo.set(k)
+                    found = True
+                    break
+            if not found: warn_col_combo.set("สีแดง (Red)")
+        else:
+            warn_col_combo.set("สีแดง (Red)")
+
+        # 4. ข้อความแจ้งเตือน (WarnMsg)
+        ctk.CTkLabel(warn_zone, text="ข้อความแจ้งเตือน (WarnMsg):", font=("Arial", 12), text_color="#5F6368").pack(anchor="w", padx=15)
+        warn_entry = ctk.CTkEntry(warn_zone, height=35, fg_color="#FFFFFF", border_color="#DADCE0", placeholder_text="เช่น งดใช้เครื่องมือช่วงบ่าย")
+        warn_entry.pack(fill="x", padx=15, pady=(0, 5))
         if is_edit: warn_entry.insert(0, machine_data.get('WarnMsg', ''))
 
-        ctk.CTkLabel(form_frame, text="ลิงก์รูปภาพ (Image URL):", font=("Arial", 12, "bold"), text_color="#5F6368").pack(anchor="w")
+        # -- รูปภาพ --
+        ctk.CTkLabel(form_frame, text="ลิงก์รูปภาพ (Image URL):", font=("Arial", 12, "bold"), text_color="#5F6368").pack(anchor="w", padx=10)
         img_frame = ctk.CTkFrame(form_frame, fg_color="transparent")
-        img_frame.pack(fill="x", pady=(0, 15))
+        img_frame.pack(fill="x", padx=10, pady=(0, 15))
         img_entry = ctk.CTkEntry(img_frame, height=35, fg_color="#F8F9FA", border_color="#DADCE0")
         img_entry.pack(side="left", fill="x", expand=True, padx=(0, 5))
         if is_edit: img_entry.insert(0, machine_data.get('Image', ''))
@@ -288,7 +350,6 @@ class MachinesPage(ctk.CTkFrame):
         def auto_upload_image():
             filepath = filedialog.askopenfilename(title="เลือกรูปเครื่องมือ", filetypes=[("Image Files", "*.png *.jpg *.jpeg")])
             if not filepath: return
-            # ✅ ป้องกันโปรแกรมเด้งถ้ายังไม่ใส่ API Key ใน .env
             if not self.IMAGE_API_KEY or self.IMAGE_API_KEY == "your_imgbb_api_key_here":
                 messagebox.showerror("Error", "ไม่พบ API Key สำหรับอัปโหลดรูปภาพ (โปรดตั้งค่าในไฟล์ .env ก่อน)")
                 return
@@ -319,6 +380,15 @@ class MachinesPage(ctk.CTkFrame):
             if not m_name: messagebox.showwarning("แจ้งเตือน", "กรุณาระบุชื่อเครื่องมือ"); return
             if not m_slots: messagebox.showwarning("แจ้งเตือน", "กรุณาระบุช่วงเวลาการจอง (Slots)"); return
             
+            # แปลงค่า Setting เป็น String
+            sel_days = [var.get() for var in self.warn_day_vars.values() if var.get() != ""]
+            warn_days_str = ",".join(sel_days)
+            
+            warn_time_str = warn_time_combo.get()
+            if warn_time_str == "ทุกรอบเวลา (All)": warn_time_str = ""
+            
+            warn_col_hex = color_choices.get(warn_col_combo.get(), "#FF5555")
+
             try:
                 sheet = self.spreadsheet.worksheet("Machines")
                 headers = sheet.row_values(1)
@@ -334,6 +404,11 @@ class MachinesPage(ctk.CTkFrame):
                     if 'WarnMsg' in headers: row_data[headers.index('WarnMsg')] = warn_entry.get().strip()
                     if 'Image' in headers: row_data[headers.index('Image')] = img_entry.get().strip()
                     
+                    # ✅ บันทึกค่าแจ้งเตือน
+                    if 'WarnDays' in headers: row_data[headers.index('WarnDays')] = warn_days_str
+                    if 'WarnTime' in headers: row_data[headers.index('WarnTime')] = warn_time_str
+                    if 'WarnCol' in headers: row_data[headers.index('WarnCol')] = warn_col_hex
+                    
                     for col_idx, val in enumerate(row_data, start=1): 
                         sheet.update_cell(row_num, col_idx, val)
                 else:
@@ -346,12 +421,18 @@ class MachinesPage(ctk.CTkFrame):
                     if 'Image' in headers: new_row[headers.index('Image')] = img_entry.get().strip()
                     if 'Color' in headers: new_row[headers.index('Color')] = "#3B82F6"
                     
+                    # ✅ บันทึกค่าแจ้งเตือน
+                    if 'WarnDays' in headers: new_row[headers.index('WarnDays')] = warn_days_str
+                    if 'WarnTime' in headers: new_row[headers.index('WarnTime')] = warn_time_str
+                    if 'WarnCol' in headers: new_row[headers.index('WarnCol')] = warn_col_hex
+                    
                     sheet.append_row(new_row)
                     
                 self.refresh_page()
             except Exception as e: messagebox.showerror("Error", f"บันทึกข้อมูลไม่สำเร็จ: {e}")
 
-        ctk.CTkButton(self.current_overlay, text="💾 บันทึกข้อมูล", fg_color="#1A73E8", hover_color="#174EA6", height=45, corner_radius=6, font=("Arial", 14, "bold"), command=save_machine).pack(fill="x", padx=20, pady=(0, 20))
+        # วางปุ่มบันทึกไว้ด้านนอก ScrollableFrame ให้กดง่ายๆ
+        ctk.CTkButton(self.current_overlay, text="💾 บันทึกข้อมูลเครื่องมือ", fg_color="#1A73E8", hover_color="#174EA6", height=45, corner_radius=6, font=("Arial", 14, "bold"), command=save_machine).pack(fill="x", padx=20, pady=(10, 20))
 
     def toggle_machine_status(self, current_status, row_num):
         new_status = "Maintenance" if current_status.lower() == "active" else "Active"
@@ -359,7 +440,6 @@ class MachinesPage(ctk.CTkFrame):
             try:
                 sheet = self.spreadsheet.worksheet("Machines")
                 sheet.update_cell(row_num, 6, new_status) 
-                if new_status == "Active": sheet.update_cell(row_num, 9, "")
                 self.refresh_page()
             except Exception as e: messagebox.showerror("Error", f"เปลี่ยนสถานะไม่สำเร็จ: {e}")
 
@@ -436,7 +516,7 @@ class MachinesPage(ctk.CTkFrame):
                 
                 display_slots = m_slots if len(m_slots) <= 50 else m_slots[:47] + "..."
                 sub_info = f"📍 สถานที่: {m_floor}   |   ⏱ รอบเวลา: {display_slots}"
-                if m_warn: sub_info += f"\n⚠️ หมายเหตุ: {m_warn}"
+                if m_warn: sub_info += f"\n⚠️ คำเตือน: {m_warn}" # ✅ โชว์ว่ามีคำเตือน
                 ctk.CTkLabel(text_frame, text=sub_info, font=("Arial", 13), text_color="#5F6368", anchor="w", justify="left").pack(fill="x", pady=(2, 0))
 
                 action_frame = ctk.CTkFrame(card, fg_color="transparent")
