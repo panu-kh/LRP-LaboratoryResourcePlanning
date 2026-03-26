@@ -4,3 +4,4 @@ authorized_user.json
 token.json
 __pycache__/
 *.pyc
+.vscode/
