@@ -1,0 +1,473 @@
+<!doctype html>
+<html>
+  <head>
+    <base target="_top" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;600&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --bg-color: #121212;
+        --line-color: #333;
+        --text-color: #ddd;
+        --start-hour: 9;
+        --total-hours: 7;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        background-color: var(--bg-color);
+        color: var(--text-color);
+        font-family: "Kanit", sans-serif;
+        margin: 0;
+        padding: 0;
+        height: 100vh;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+      }
+
+      .fab-back {
+        position: fixed;
+        bottom: 20px;
+        left: 20px;
+        background: rgba(255, 255, 255, 0.1);
+        padding: 10px 20px;
+        border-radius: 30px;
+        text-decoration: none;
+        color: white;
+        backdrop-filter: blur(5px);
+        border: 1px solid #555;
+        font-size: 0.9em;
+        z-index: 999;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+        transition: background 0.3s;
+      }
+      .fab-back:hover {
+        background: rgba(255, 255, 255, 0.2);
+      }
+
+      .legend-bar {
+        background: #1e1e1e;
+        padding: 10px 20px;
+        border-bottom: 1px solid var(--line-color);
+        display: flex;
+        gap: 15px;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.8em;
+        min-height: 50px;
+        flex-shrink: 0;
+      }
+      .legend-item {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+      }
+      .legend-color {
+        width: 12px;
+        height: 12px;
+        border-radius: 3px;
+      }
+
+      .timeline-header {
+        display: flex;
+        height: 40px;
+        border-bottom: 1px solid var(--line-color);
+        padding-left: 80px;
+        background: #1e1e1e;
+        position: relative;
+        flex-shrink: 0;
+      }
+
+      .time-marker {
+        flex: 1;
+        position: relative;
+        border-left: 1px dashed #444;
+        height: 100%;
+        display: flex;
+        align-items: center;
+      }
+      .time-marker:last-child {
+        border-right: 1px dashed #444;
+      }
+
+      .time-label {
+        position: absolute;
+        left: -15px;
+        top: 10px;
+        font-size: 11px;
+        background: #1e1e1e;
+        padding: 0 4px;
+        color: #aaa;
+      }
+      .time-label.end-label {
+        left: auto;
+        right: -15px;
+      }
+
+      .timeline-body {
+        flex: 1;
+        overflow-y: auto;
+        position: relative;
+        background: #121212;
+        display: flex;
+        flex-direction: column;
+      }
+
+      .day-row {
+        display: flex;
+        border-bottom: 1px solid var(--line-color);
+        position: relative;
+        flex: 1;
+        min-height: 80px; /* ✅ เพิ่มความสูงขั้นต่ำให้พอสำหรับสระบน/ล่าง */
+      }
+
+      .grid-lines {
+        position: absolute;
+        top: 0;
+        left: 80px;
+        right: 0;
+        bottom: 0;
+        display: flex;
+        pointer-events: none;
+        z-index: 0;
+      }
+      .grid-line {
+        flex: 1;
+        border-left: 1px dashed #2a2a2a;
+      }
+      .grid-line:last-child {
+        border-right: 1px dashed #2a2a2a;
+      }
+
+      .date-label {
+        width: 80px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        font-size: 0.8em;
+        background: #1a1a1a;
+        border-right: 1px solid var(--line-color);
+        z-index: 2;
+        color: #fff;
+        padding: 0 5px;
+        flex-shrink: 0;
+        position: sticky;
+        left: 0;
+      }
+      .date-main {
+        font-weight: bold;
+        font-size: 1.1em;
+      }
+      .date-sub {
+        font-size: 0.8em;
+        color: #888;
+      }
+
+      .track-area {
+        flex: 1;
+        position: relative;
+        z-index: 1;
+        height: 100%;
+      }
+
+      .booking-bar {
+        position: absolute;
+        border-radius: 4px;
+        font-size: 0.75em;
+        padding: 4px 10px; /* ✅ เพิ่มระยะห่างบนล่างให้สระไทย ไม่ให้โดนตัด */
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        justify-content: flex-start;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        box-shadow: 2px 2px 4px rgba(0, 0, 0, 0.4);
+        z-index: 10;
+        color: white;
+        border: 1px solid rgba(255, 255, 255, 0.15);
+        transition:
+          transform 0.2s,
+          z-index 0.2s;
+        font-weight: 500;
+        line-height: normal; /* ✅ ยกเลิก line-height แบบแคบ */
+      }
+      .booking-bar:hover {
+        transform: scale(1.02);
+        z-index: 20;
+        cursor: pointer;
+      }
+
+      #loading {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background: rgba(0, 0, 0, 0.85);
+        padding: 30px;
+        border-radius: 15px;
+        z-index: 1000;
+        text-align: center;
+        border: 1px solid #444;
+      }
+      .spinner {
+        border: 4px solid rgba(255, 255, 255, 0.1);
+        border-left-color: #88304e;
+        border-radius: 50%;
+        width: 40px;
+        height: 40px;
+        animation: spin 1s linear infinite;
+        margin: 0 auto 15px auto;
+      }
+      @keyframes spin {
+        0% {
+          transform: rotate(0deg);
+        }
+        100% {
+          transform: rotate(360deg);
+        }
+      }
+      .error-msg {
+        color: #ff5555;
+        font-size: 0.8em;
+        margin-top: 10px;
+        white-space: pre-wrap;
+      }
+    </style>
+  </head>
+  <body>
+    <a href="?page=dashboard" class="fab-back">⬅ Dashboard</a>
+
+    <div id="loading">
+      <div class="spinner"></div>
+      <div style="font-weight: bold; margin-bottom: 5px">Loading Timeline</div>
+      <div style="font-size: 0.8em; color: #aaa">Syncing with Sheet...</div>
+      <div id="error-log" class="error-msg"></div>
+    </div>
+
+    <div id="legend-container" class="legend-bar"></div>
+
+    <div class="timeline-header">
+      <div class="time-marker"><span class="time-label">09:00</span></div>
+      <div class="time-marker"><span class="time-label">10:00</span></div>
+      <div class="time-marker"><span class="time-label">11:00</span></div>
+      <div class="time-marker"><span class="time-label">12:00</span></div>
+      <div class="time-marker"><span class="time-label">13:00</span></div>
+      <div class="time-marker"><span class="time-label">14:00</span></div>
+      <div class="time-marker">
+        <span class="time-label">15:00</span>
+        <span class="time-label end-label">16:00</span>
+      </div>
+    </div>
+
+    <div class="timeline-body" id="schedule-container">
+      <div class="grid-lines">
+        <div class="grid-line"></div>
+        <div class="grid-line"></div>
+        <div class="grid-line"></div>
+        <div class="grid-line"></div>
+        <div class="grid-line"></div>
+        <div class="grid-line"></div>
+        <div class="grid-line"></div>
+      </div>
+    </div>
+
+    <script>
+      const START_HOUR = 9;
+      const TOTAL_HOURS = 7;
+      let currentVersion = 0;
+      let cachedConfig = null;
+
+      function runServerFunction(funcName) {
+        return new Promise((resolve, reject) => {
+          google.script.run
+            .withSuccessHandler(resolve)
+            .withFailureHandler(reject)
+            [funcName]();
+        });
+      }
+
+      function loadAll() {
+        Promise.all([
+          runServerFunction("getAppConfig"),
+          runServerFunction("getTimelineData"),
+          runServerFunction("getLastUpdateTimestamp"),
+        ])
+          .then(([config, data, timestamp]) => {
+            if (!config || !data)
+              throw new Error("No data received from server.");
+
+            cachedConfig = config;
+            renderLegend(config);
+            renderTimeline(config, data);
+            currentVersion = timestamp;
+
+            document.getElementById("loading").style.display = "none";
+          })
+          .catch((error) => {
+            console.error("Critical Error:", error);
+            document.getElementById("error-log").innerText =
+              "Error: " + error.message;
+          });
+      }
+
+      loadAll();
+
+      setInterval(() => {
+        runServerFunction("getLastUpdateTimestamp")
+          .then((serverVersion) => {
+            if (serverVersion > currentVersion) {
+              console.log("Changes detected. Refreshing...");
+              loadAll();
+            }
+          })
+          .catch((e) => console.warn("Polling missed:", e));
+      }, 5000);
+
+      function renderLegend(config) {
+        const container = document.getElementById("legend-container");
+        let html = "";
+        Object.keys(config).forEach((key) => {
+          const item = config[key];
+          html += `
+          <div class="legend-item">
+            <div class="legend-color" style="background-color: ${item.color || "#888"};"></div>
+            <span>${key} (ชั้น ${item.floor})</span>
+          </div>
+        `;
+        });
+        container.innerHTML = html;
+      }
+
+      function renderTimeline(config, data) {
+        const container = document.getElementById("schedule-container");
+        const gridLines = container.querySelector(".grid-lines").outerHTML;
+        let html = gridLines;
+
+        data.forEach((day) => {
+          let barsHtml = "";
+
+          if (day.bookings && day.bookings.length > 0) {
+            // --- STEP 1: MERGE (รวมร่าง) ---
+            let sortedForMerge = day.bookings.sort((a, b) => {
+              if (a.machine !== b.machine)
+                return a.machine.localeCompare(b.machine);
+              if (a.user !== b.user) return a.user.localeCompare(b.user);
+              return a.start - b.start;
+            });
+
+            let mergedBookings = [];
+            sortedForMerge.forEach((booking) => {
+              if (mergedBookings.length > 0) {
+                let last = mergedBookings[mergedBookings.length - 1];
+                let lastEnd = last.start + last.duration;
+                if (
+                  last.machine === booking.machine &&
+                  last.user === booking.user &&
+                  lastEnd === booking.start
+                ) {
+                  last.duration += booking.duration;
+                  if (booking.timestamp < last.timestamp) {
+                    last.timestamp = booking.timestamp;
+                  }
+                  return;
+                }
+              }
+              mergedBookings.push({ ...booking });
+            });
+
+            // --- STEP 2: STACKING (จัดเรียงแถว) ---
+            let finalBookings = mergedBookings.sort((a, b) => {
+              if (a.start !== b.start) {
+                return a.start - b.start;
+              }
+              return a.timestamp - b.timestamp;
+            });
+
+            let visualRows = [];
+            finalBookings.forEach((booking) => {
+              let placed = false;
+              let myEnd = booking.start + booking.duration;
+
+              for (let i = 0; i < visualRows.length; i++) {
+                if (booking.start >= visualRows[i]) {
+                  booking.visualRow = i;
+                  visualRows[i] = myEnd;
+                  placed = true;
+                  break;
+                }
+              }
+
+              if (!placed) {
+                booking.visualRow = visualRows.length;
+                visualRows.push(myEnd);
+              }
+            });
+
+            // --- STEP 3: Height & Center Calculation ---
+            let totalRows = Math.max(visualRows.length, 2);
+            let rowHeightPercent = 100 / totalRows;
+            let isSingleRow = visualRows.length === 1;
+
+            // --- STEP 4: Render HTML ---
+            finalBookings.forEach((booking) => {
+              let leftPercent =
+                ((booking.start - START_HOUR) / TOTAL_HOURS) * 100;
+              let widthPercent = (booking.duration / TOTAL_HOURS) * 100;
+              let topPercent = booking.visualRow * rowHeightPercent;
+
+              if (isSingleRow) {
+                topPercent += 25;
+              }
+
+              let barColor = config[booking.machine]
+                ? config[booking.machine].color
+                : "#555";
+
+              let userShort = booking.user.split(" ")[0];
+              let advisorShort = booking.advisor
+                ? booking.advisor.split(" ")[0]
+                : "";
+              let displayText = `${booking.machine} - ${userShort}`;
+              if (advisorShort) displayText += ` / ${advisorShort}`;
+
+              // ✅ ใช้ calc() หักลบความสูงออกนิดหน่อย เพื่อให้ไม่ชิดขอบจนเกินไป
+              barsHtml += `
+              <div class="booking-bar" 
+                   title="${booking.machine} โดย ${booking.user} (จองเมื่อ: ${new Date(booking.timestamp).toLocaleString()})"
+                   style="left: ${leftPercent}%; width: ${widthPercent}%; 
+                          top: calc(${topPercent}% + 2px); height: calc(${rowHeightPercent}% - 4px); 
+                          background-color: ${barColor};">
+                ${displayText}
+              </div>
+            `;
+            });
+          }
+
+          let dateParts = day.date.split(" ");
+          let dateHtml = `<div class="date-main">${dateParts[0]}</div><div class="date-sub">${dateParts[1] || ""}</div>`;
+
+          html += `
+          <div class="day-row">
+            <div class="date-label">${dateHtml}</div>
+            <div class="track-area">
+              ${barsHtml}
+            </div>
+          </div>
+        `;
+        });
+
+        container.innerHTML = html;
+      }
+    </script>
+  </body>
+</html>
