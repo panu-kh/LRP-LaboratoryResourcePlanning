@@ -117,9 +117,9 @@ class DashboardPage(ctk.CTkFrame):
         
         ctk.CTkLabel(nav_frame, text="Analytics", font=("Arial", 22, "bold"), text_color="#202124").pack(side="left", padx=30)
 
+        # ✅ ลบคำสั่ง pack_propagate(False) ของ tab_bg ออก เพื่อให้กล่องยืดตามปุ่มได้!
         tab_bg = ctk.CTkFrame(nav_frame, fg_color="#F1F3F4", corner_radius=20, height=40)
         tab_bg.pack(side="left", padx=20, pady=15)
-        tab_bg.pack_propagate(False)
 
         def switch_tab(tab_name):
             self.current_tab = tab_name
@@ -130,17 +130,16 @@ class DashboardPage(ctk.CTkFrame):
             self.update_dashboard()
 
         btn_over = ctk.CTkButton(tab_bg, text="Overview", font=("Arial", 13, "bold"), fg_color="#FFFFFF", text_color="#1A73E8", hover_color="#FFFFFF", corner_radius=15, width=90, height=32, command=lambda: switch_tab("Overview"))
-        btn_over.pack(side="left", padx=4)
+        btn_over.pack(side="left", padx=4, pady=4) # ✅ ใส่ pady=4 ดันขอบบนล่างให้สวยๆ
         
         btn_user = ctk.CTkButton(tab_bg, text="Users", font=("Arial", 13, "bold"), fg_color="transparent", text_color="#5F6368", hover_color="#E8EAED", corner_radius=15, width=90, height=32, command=lambda: switch_tab("Users"))
-        btn_user.pack(side="left", padx=4)
+        btn_user.pack(side="left", padx=4, pady=4)
 
         btn_time = ctk.CTkButton(tab_bg, text="Times", font=("Arial", 13, "bold"), fg_color="transparent", text_color="#5F6368", hover_color="#E8EAED", corner_radius=15, width=90, height=32, command=lambda: switch_tab("Times"))
-        btn_time.pack(side="left", padx=4)
+        btn_time.pack(side="left", padx=4, pady=4)
 
-        # ✅ เพิ่มแท็บความพึงพอใจ
-        btn_rate = ctk.CTkButton(tab_bg, text="⭐ Ratings", font=("Arial", 13, "bold"), fg_color="transparent", text_color="#5F6368", hover_color="#E8EAED", corner_radius=15, width=90, height=32, command=lambda: switch_tab("Ratings"))
-        btn_rate.pack(side="left", padx=4)
+        btn_rate = ctk.CTkButton(tab_bg, text="⭐ Ratings", font=("Arial", 13, "bold"), fg_color="transparent", text_color="#5F6368", hover_color="#E8EAED", corner_radius=15, width=100, height=32, command=lambda: switch_tab("Ratings"))
+        btn_rate.pack(side="left", padx=4, pady=4)
 
         filter_frame = ctk.CTkFrame(nav_frame, fg_color="transparent")
         filter_frame.pack(side="right", padx=30)
@@ -220,7 +219,7 @@ class DashboardPage(ctk.CTkFrame):
         ax.tick_params(axis='y', length=0) 
         ax.tick_params(axis='x', color='#E4E7EB')
 
-    # ==================== TAB 1: ภาพรวม (Overview) ====================
+# ==================== TAB 1: ภาพรวม (Overview) ====================
     def render_overview(self, data):
         cards_frame = ctk.CTkFrame(self.content_frame, fg_color="transparent")
         cards_frame.pack(fill="x", pady=(0, 20))
@@ -229,14 +228,16 @@ class DashboardPage(ctk.CTkFrame):
         unique_users = len(set([b.get('Name', '') for b in data if b.get('Name')]))
         unique_machines = len(set([b.get('Machine', '') for b in data if b.get('Machine')]))
 
-        def create_stat_card(parent, title, value, icon, accent_color):
+        # ✅ แก้ไขตรงนี้: เพิ่มพารามิเตอร์ light_color เข้ามาแทนการใช้ความโปร่งใส
+        def create_stat_card(parent, title, value, icon, accent_color, light_color):
             card = self.create_premium_card(parent, height=120)
             card.pack(side="left", fill="x", expand=True, padx=8)
             
             top_frame = ctk.CTkFrame(card, fg_color="transparent")
             top_frame.pack(fill="x", padx=20, pady=(20, 5))
             
-            icon_bg = ctk.CTkFrame(top_frame, fg_color=f"{accent_color}1A", corner_radius=8, width=32, height=32)
+            # ✅ ใช้สีอ่อน (light_color) เป็นพื้นหลังไอคอนแทน
+            icon_bg = ctk.CTkFrame(top_frame, fg_color=light_color, corner_radius=8, width=32, height=32)
             icon_bg.pack(side="left")
             icon_bg.pack_propagate(False)
             ctk.CTkLabel(icon_bg, text=icon, font=("Arial", 16), text_color=accent_color).pack(expand=True)
@@ -244,9 +245,10 @@ class DashboardPage(ctk.CTkFrame):
             ctk.CTkLabel(top_frame, text=title, font=("Arial", 13, "bold"), text_color="#5F6368").pack(side="left", padx=10)
             ctk.CTkLabel(card, text=f"{value:,}", font=("Arial", 36, "bold"), text_color="#202124").pack(anchor="w", padx=20, pady=(0, 10))
 
-        create_stat_card(cards_frame, "Total Bookings", total_bookings, "📅", "#1A73E8")
-        create_stat_card(cards_frame, "Active Users", unique_users, "👥", "#10B981")
-        create_stat_card(cards_frame, "Machines Used", unique_machines, "⚙️", "#F59E0B")
+        # ✅ จับคู่สีหลัก กับ สีอ่อน (Pastel) ส่งเข้าไปให้ทำงานได้บน Mac
+        create_stat_card(cards_frame, "Total Bookings", total_bookings, "📅", "#1A73E8", "#E8F0FE")
+        create_stat_card(cards_frame, "Active Users", unique_users, "👥", "#10B981", "#E6F4EA")
+        create_stat_card(cards_frame, "Machines Used", unique_machines, "⚙️", "#F59E0B", "#FEF7E0")
 
         chart_card = self.create_premium_card(self.content_frame, height=450)
         chart_card.pack(fill="x", padx=8)
