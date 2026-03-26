@@ -3,8 +3,8 @@ const props = PropertiesService.getScriptProperties();
 const CHANNEL_ACCESS_TOKEN = props.getProperty('LINE_TOKEN'); 
 const SHEET_ID = props.getProperty('SHEET_ID'); 
 
-// 📌 ดึงลิงก์ PDF จาก Script Properties (และตั้งค่า Default กันพัง)
-PDF_PRIVACY_NOTICE_URL = props.getProperty('PDF_URL');
+// 📌 ดึงลิงก์ PDF จาก Script Properties
+const PDF_PRIVACY_NOTICE_URL = props.getProperty('PDF_URL');
 
 const SHEET_BOOKINGS = 'Bookings';
 const SHEET_USERS = 'Users';
@@ -12,6 +12,7 @@ const SHEET_MACHINES = 'Machines';
 const SHEET_RATINGS = 'Ratings'; 
 const SHEET_BLOCKED = 'BlockedSlots'; 
 const SHEET_WAITING = 'WaitingList'; 
+const SHEET_HISTORY = 'History';
 
 const COLOR_THEME = { 
   HEADER_BG: "#88304E", 
@@ -25,9 +26,16 @@ const COLOR_THEME = {
   TEXT_SUB: "#AAAAAA" 
 };
 
+// 🔥 OPTIMIZATION: Global Cache สำหรับ Spreadsheet
+let cachedSS = null;
+function getSS() {
+  if (!cachedSS) cachedSS = SpreadsheetApp.openById(SHEET_ID);
+  return cachedSS;
+}
+
 // =================== 2. DYNAMIC CONFIG ===================
 function getMachinesConfig() {
-  const sheet = SpreadsheetApp.openById(SHEET_ID).getSheetByName(SHEET_MACHINES); 
+  const sheet = getSS().getSheetByName(SHEET_MACHINES); 
   const data = sheet.getDataRange().getValues(); 
   let config = {};
   
@@ -56,7 +64,7 @@ function getMachinesConfig() {
 function getBlockedSlotsConfig() {
   let config = {};
   try {
-    const sheet = SpreadsheetApp.openById(SHEET_ID).getSheetByName(SHEET_BLOCKED); 
+    const sheet = getSS().getSheetByName(SHEET_BLOCKED); 
     if (!sheet) return config;
     
     const data = sheet.getDataRange().getValues();
@@ -110,7 +118,7 @@ function handlePostback(replyToken, data, userId) {
     params[key] = decodeURIComponent(val); 
   });
 
-  // ⭐️ 1. จัดการ PDPA 
+  // 1. จัดการ PDPA 
   if (params.action === 'accept_pdpa') {
     const cache = CacheService.getScriptCache();
     let isUpdate = cache.get("is_update_" + userId);
@@ -133,7 +141,7 @@ function handlePostback(replyToken, data, userId) {
   else if (params.action === 'rate') {
     let score = params.score; 
     let bid = params.bid; 
-    let sheet = SpreadsheetApp.openById(SHEET_ID).getSheetByName(SHEET_RATINGS);
+    let sheet = getSS().getSheetByName(SHEET_RATINGS);
     let rows = sheet.getDataRange().getValues(); 
     let isVoted = false;
     
@@ -163,12 +171,12 @@ function handlePostback(replyToken, data, userId) {
     
     if (!profile) return; 
 
-    let sheet = SpreadsheetApp.openById(SHEET_ID).getSheetByName(SHEET_WAITING);
+    let sheet = getSS().getSheetByName(SHEET_WAITING);
     sheet.appendRow([new Date(), userId, m, d, t]);
     sendLineReply(replyToken, [{ type: "text", text: `📝 บันทึกรายชื่อรอคิวสำเร็จ!\nหากมีคิวว่าง ระบบจะส่งอีเมลแจ้งเตือนไปที่ ${profile.email} ทันทีครับ` }]);
   }
 
-  // 4. ยกเลิกคิว (แบบ Soft Delete)
+  // 4. ยกเลิกคิว (แบบ Soft Delete - เปลี่ยนสถานะเป็น Canceled)
   else if (params.action === 'cancel') {
     let profile = checkUserGate(replyToken, userId); 
     if (!profile) return;
@@ -188,7 +196,7 @@ function handlePostback(replyToken, data, userId) {
       return; 
     }
 
-    const sheet = SpreadsheetApp.openById(SHEET_ID).getSheetByName(SHEET_BOOKINGS); 
+    const sheet = getSS().getSheetByName(SHEET_BOOKINGS); 
     const data = sheet.getDataRange().getValues(); 
     let headers = data[0];
     let statusColIdx = headers.indexOf('Status');
@@ -350,14 +358,7 @@ function replyPDPAConsent(replyToken, isUpdate = false) {
     }
   };
   
-  // ⭐️ ลองล็อก Error หากการสร้าง Flex มีปัญหา
-  try {
-    sendLineReply(replyToken, [{ "type": "flex", "altText": "กรุณายอมรับเงื่อนไข PDPA", "contents": flex }]);
-  } catch (e) {
-    console.log("Flex Error:", e);
-    // ส่งข้อความธรรมดา หาก Flex พัง
-    sendLineReply(replyToken, [{ "type": "text", "text": "กรุณาตั้งค่าลิงก์ PDF ใน Script Properties ให้ถูกต้อง (ต้องขึ้นต้นด้วย http:// หรือ https://)" }]);
-  }
+  sendLineReply(replyToken, [{ "type": "flex", "altText": "กรุณายอมรับเงื่อนไข PDPA", "contents": flex }]);
 }
 
 function handleRegistrationFlow(replyToken, msg, userId, state) {
@@ -396,7 +397,7 @@ function handleRegistrationFlow(replyToken, msg, userId, state) {
     let email = cache.get("temp_email_" + userId);
     let regisDate = Utilities.formatDate(new Date(), "GMT+7", "dd/MM/yyyy HH:mm");
     
-    let sheetUsers = SpreadsheetApp.openById(SHEET_ID).getSheetByName(SHEET_USERS);
+    let sheetUsers = getSS().getSheetByName(SHEET_USERS);
     sheetUsers.appendRow([userId, name, year, advisor, regisDate, "Active", email, phone]);
     clearCache(userId);
     
@@ -417,7 +418,7 @@ function handleRegistrationFlow(replyToken, msg, userId, state) {
     let phone = msg.trim(); 
     let email = cache.get("temp_email_" + userId);
     
-    let sheetUsers = SpreadsheetApp.openById(SHEET_ID).getSheetByName(SHEET_USERS);
+    let sheetUsers = getSS().getSheetByName(SHEET_USERS);
     let data = sheetUsers.getDataRange().getValues(); 
     let headers = data[0];
     
@@ -447,7 +448,7 @@ function handleRegistrationFlow(replyToken, msg, userId, state) {
 }
 
 function replyUpcomingBookings(replyToken, userId) {
-  const sheet = SpreadsheetApp.openById(SHEET_ID).getSheetByName(SHEET_BOOKINGS); 
+  const sheet = getSS().getSheetByName(SHEET_BOOKINGS); 
   const data = sheet.getDataRange().getValues(); 
   let headers = data[0];
   let statusColIdx = headers.indexOf('Status');
@@ -582,12 +583,25 @@ function replyMachineSelector(replyToken, targetFloor) {
   }
 }
 
+// 🔥 OPTIMIZATION: ใช้ Hash Map ในการเช็คคิว
 function replyFlexSchedule(replyToken, machineName, currentUserId) {
   const MACHINES_CONFIG = getMachinesConfig(); 
   const BLOCKED_CONFIG = getBlockedSlotsConfig(); 
-  const sheet = SpreadsheetApp.openById(SHEET_ID).getSheetByName(SHEET_BOOKINGS); 
+  const sheet = getSS().getSheetByName(SHEET_BOOKINGS); 
   const data = sheet.getDataRange().getValues();
   
+  let headers = data[0]; 
+  let statusColIdx = headers.indexOf('Status');
+  
+  let bookingMap = {};
+  for (let i = 1; i < data.length; i++) {
+    let status = (statusColIdx !== -1 && data[i][statusColIdx]) ? String(data[i][statusColIdx]).trim() : "Active";
+    if (status === "Canceled") continue;
+    let rowDate = Utilities.formatDate(new Date(data[i][3]), Session.getScriptTimeZone(), "yyyy-MM-dd");
+    let key = data[i][2] + "_" + rowDate + "_" + data[i][4]; 
+    bookingMap[key] = data[i][1]; 
+  }
+
   let bubbles = []; 
   let today = new Date(); 
   let machineInfo = MACHINES_CONFIG[machineName]; 
@@ -615,7 +629,7 @@ function replyFlexSchedule(replyToken, machineName, currentUserId) {
     }
     
     slots.forEach(slot => {
-      let bookerId = checkBooker(data, machineName, dateCheck, slot); 
+      let bookerId = bookingMap[`${machineName}_${dateCheck}_${slot}`] || null; 
       let isBlocked = false; 
       let blockMsg = "";
       
@@ -756,7 +770,7 @@ function finalizeBooking(replyToken, userId, profile) {
   }
   
   const cache = CacheService.getScriptCache(); 
-  const sheet = SpreadsheetApp.openById(SHEET_ID).getSheetByName(SHEET_BOOKINGS); 
+  const sheet = getSS().getSheetByName(SHEET_BOOKINGS); 
   let cart = JSON.parse(cache.get("cart_" + userId) || "[]");
   
   if (cart.length === 0) { 
@@ -765,13 +779,14 @@ function finalizeBooking(replyToken, userId, profile) {
     return; 
   }
   
+  let data = sheet.getDataRange().getValues();
   let bookingId = new Date().getTime().toString(); 
   let successCount = 0; 
   let successItems = []; 
   let failMsg = "";
   
   cart.forEach(item => { 
-    if (!checkAvailability(sheet.getDataRange().getValues(), item.machine, item.date, item.time)) { 
+    if (!checkAvailability(data, item.machine, item.date, item.time)) { 
       sheet.appendRow([new Date(), userId, item.machine, item.date, item.time, profile.name, profile.advisor, profile.year, "Active"]); 
       successCount++; 
       successItems.push(`${item.machine} | ${item.time} (${item.date})`); 
@@ -841,15 +856,15 @@ function finalizeBooking(replyToken, userId, profile) {
 }
 
 function checkBooker(data, machine, dateStr, timeStr) { 
-  let headers = data[0];
+  let headers = data[0]; 
   let statusColIdx = headers.indexOf('Status');
-
+  
   for (let i = 1; i < data.length; i++) { 
     let rowDate = Utilities.formatDate(new Date(data[i][3]), Session.getScriptTimeZone(), "yyyy-MM-dd"); 
     let status = (statusColIdx !== -1 && data[i][statusColIdx]) ? String(data[i][statusColIdx]).trim() : "Active";
     
     if (data[i][2] == machine && rowDate == dateStr && data[i][4] == timeStr && status !== "Canceled") {
-        return data[i][1]; 
+      return data[i][1]; 
     }
   } 
   return null; 
@@ -859,18 +874,24 @@ function checkAvailability(data, machine, dateStr, timeStr) {
   return checkBooker(data, machine, dateStr, timeStr) !== null; 
 }
 
+// 🔥 OPTIMIZATION: แจ้งเตือนคิวหลุดแบบเร็ว
 function checkWaitingListAndNotify(machine, dateStr, timeStr) {
-  const sheetWait = SpreadsheetApp.openById(SHEET_ID).getSheetByName(SHEET_WAITING); 
+  const sheetWait = getSS().getSheetByName(SHEET_WAITING); 
   if (!sheetWait) return; 
   
   const dataWait = sheetWait.getDataRange().getValues();
-  const sheetUsers = SpreadsheetApp.openById(SHEET_ID).getSheetByName(SHEET_USERS); 
+  const sheetUsers = getSS().getSheetByName(SHEET_USERS); 
   const dataUsers = sheetUsers.getDataRange().getValues();
   const headers = dataUsers[0]; 
   const emailColIdx = headers.indexOf('Email'); 
   
   if (emailColIdx === -1) return;
   
+  let userMap = {};
+  for (let j = 1; j < dataUsers.length; j++) {
+      userMap[dataUsers[j][0]] = { name: dataUsers[j][1], email: dataUsers[j][emailColIdx] };
+  }
+
   let notifiedIds = []; 
   let rowsToDelete = [];
   
@@ -881,23 +902,14 @@ function checkWaitingListAndNotify(machine, dateStr, timeStr) {
         let uId = dataWait[i][1];
         
         if (!notifiedIds.includes(uId)) {
-           let uEmail = null; 
-           let uName = "";
+           let uInfo = userMap[uId];
            
-           for(let j = 1; j < dataUsers.length; j++){ 
-             if(dataUsers[j][0] === uId) { 
-               uEmail = dataUsers[j][emailColIdx]; 
-               uName = dataUsers[j][1]; 
-               break; 
-             } 
-           }
-           
-           if(uEmail && uEmail.includes("@")) {
+           if(uInfo && uInfo.email && String(uInfo.email).includes("@")) {
               const subject = `🟢 แจ้งเตือนคิวหลุด: ${machine} (${dateStr} ${timeStr})`; 
-              const body = `เรียนคุณ ${uName},\n\nคิวที่คุณลงชื่อรอไว้ ตอนนี้ "ว่างแล้ว" ครับ!\n\n📌 รายละเอียด:\nเครื่อง: ${machine}\nวันที่: ${dateStr}\nเวลา: ${timeStr}\n\nรีบเข้าไปทำรายการจองผ่าน LINE Bot ได้เลยครับ 🏃‍♂️💨`;
+              const body = `เรียนคุณ ${uInfo.name},\n\nคิวที่คุณลงชื่อรอไว้ ตอนนี้ "ว่างแล้ว" ครับ!\n\n📌 รายละเอียด:\nเครื่อง: ${machine}\nวันที่: ${dateStr}\nเวลา: ${timeStr}\n\nรีบเข้าไปทำรายการจองผ่าน LINE Bot ได้เลยครับ 🏃‍♂️💨`;
               
               try { 
-                MailApp.sendEmail(uEmail, subject, body); 
+                MailApp.sendEmail(uInfo.email, subject, body); 
               } catch(e) { 
                 console.log("Email Error: " + e); 
               } 
@@ -913,7 +925,7 @@ function checkWaitingListAndNotify(machine, dateStr, timeStr) {
 }
 
 function getUserProfileFromSheet(userId) {
-  let sheet = SpreadsheetApp.openById(SHEET_ID).getSheetByName(SHEET_USERS); 
+  let sheet = getSS().getSheetByName(SHEET_USERS); 
   let data = sheet.getDataRange().getValues(); 
   let headers = data[0];
   let emailColIdx = headers.indexOf('Email'); 
@@ -986,10 +998,10 @@ function replyUserProfile(replyToken, profile) {
 }
 
 function replyBookingHistory(replyToken, userId) {
-  const sheet = SpreadsheetApp.openById(SHEET_ID).getSheetByName(SHEET_BOOKINGS); 
+  const sheet = getSS().getSheetByName(SHEET_BOOKINGS); 
   const data = sheet.getDataRange().getValues(); 
-  let headers = data[0];
-  let statusColIdx = headers.indexOf('Status');
+  let headers = data[0]; 
+  let statusColIdx = headers.indexOf('Status'); 
   let myHistory = [];
   
   for (let i = 1; i < data.length; i++) { 
@@ -997,14 +1009,7 @@ function replyBookingHistory(replyToken, userId) {
       let rawDate = data[i][3]; 
       let dateStr = (rawDate instanceof Date) ? Utilities.formatDate(rawDate, "GMT+7", "dd/MM/yyyy") : String(rawDate); 
       let statusVal = (statusColIdx !== -1 && data[i][statusColIdx]) ? String(data[i][statusColIdx]).trim() : "Active";
-      
-      myHistory.push({ 
-        machine: data[i][2], 
-        date: dateStr, 
-        time: data[i][4], 
-        timestamp: new Date(data[i][0]).getTime(),
-        status: statusVal
-      }); 
+      myHistory.push({ machine: data[i][2], date: dateStr, time: data[i][4], timestamp: new Date(data[i][0]).getTime(), status: statusVal }); 
     } 
   }
   
@@ -1016,44 +1021,28 @@ function replyBookingHistory(replyToken, userId) {
   myHistory.sort((a, b) => b.timestamp - a.timestamp);
   
   let historyRows = myHistory.slice(0, 10).map(item => {
-    let isCanceled = item.status === "Canceled";
-    let statusBadge = isCanceled ? " [ยกเลิก]" : "";
-    let itemColor = isCanceled ? "#EF4444" : COLOR_THEME.TEXT_MAIN;
+    let isCanceled = item.status === "Canceled"; 
+    let statusBadge = isCanceled ? " [ยกเลิก]" : ""; 
+    let itemColor = isCanceled ? "#EF4444" : COLOR_THEME.TEXT_MAIN; 
     let timeColor = isCanceled ? "#EF4444" : COLOR_THEME.BUTTON_OK;
-
-    return {
-      "type": "box",
-      "layout": "vertical",
-      "margin": "md",
-      "contents": [
-        {
-          "type": "box",
-          "layout": "baseline",
-          "contents": [
-            { "type": "text", "text": item.date, "color": COLOR_THEME.TEXT_SUB, "size": "xs", "flex": 2 },
-            { "type": "text", "text": item.machine + statusBadge, "color": itemColor, "weight": "bold", "size": "sm", "flex": 5 },
-            { "type": "text", "text": item.time, "color": timeColor, "size": "xs", "align": "end", "flex": 2 }
-          ]
-        },
-        { "type": "separator", "margin": "sm", "color": "#444444" }
-      ]
+    
+    return { 
+      "type": "box", "layout": "vertical", "margin": "md", 
+      "contents": [ 
+        { "type": "box", "layout": "baseline", "contents": [ 
+          { "type": "text", "text": item.date, "color": COLOR_THEME.TEXT_SUB, "size": "xs", "flex": 2 }, 
+          { "type": "text", "text": item.machine + statusBadge, "color": itemColor, "weight": "bold", "size": "sm", "flex": 5 }, 
+          { "type": "text", "text": item.time, "color": timeColor, "size": "xs", "align": "end", "flex": 2 } 
+        ] }, 
+        { "type": "separator", "margin": "sm", "color": "#444444" } 
+      ] 
     };
   });
   
-  let flex = {
-    "type": "bubble",
-    "header": {
-      "type": "box",
-      "layout": "vertical",
-      "backgroundColor": COLOR_THEME.HEADER_BG,
-      "contents": [ { "type": "text", "text": "ประวัติล่าสุด", "weight": "bold", "color": COLOR_THEME.TEXT_MAIN, "size": "lg" } ]
-    },
-    "body": {
-      "type": "box",
-      "layout": "vertical",
-      "backgroundColor": COLOR_THEME.BODY_BG,
-      "contents": [ ...historyRows ]
-    }
+  let flex = { 
+    "type": "bubble", 
+    "header": { "type": "box", "layout": "vertical", "backgroundColor": COLOR_THEME.HEADER_BG, "contents": [ { "type": "text", "text": "ประวัติล่าสุด", "weight": "bold", "color": COLOR_THEME.TEXT_MAIN, "size": "lg" } ] }, 
+    "body": { "type": "box", "layout": "vertical", "backgroundColor": COLOR_THEME.BODY_BG, "contents": [ ...historyRows ] } 
   };
   
   sendLineReply(replyToken, [{ "type": "flex", "altText": "History", "contents": flex }]);
@@ -1076,53 +1065,47 @@ function sendLineReply(replyToken, messages) {
 }
 
 function getTimelineData() {
-  const sheet = SpreadsheetApp.openById(SHEET_ID).getSheetByName(SHEET_BOOKINGS);
-  const data = sheet.getDataRange().getValues();
-  let headers = data[0];
+  const sheet = getSS().getSheetByName(SHEET_BOOKINGS); 
+  const data = sheet.getDataRange().getValues(); 
+  let headers = data[0]; 
   let statusColIdx = headers.indexOf('Status');
   
-  const MACHINES_CONFIG = getMachinesConfig();
+  const MACHINES_CONFIG = getMachinesConfig(); 
   const BLOCKED_CONFIG = getBlockedSlotsConfig(); 
 
-  let schedule = [];
-  let today = new Date();
-  let dayCount = 0;
+  let schedule = []; 
+  let today = new Date(); 
+  let dayCount = 0; 
   let currentCheckDate = new Date(today);
 
   while (dayCount < 6) { 
     if (currentCheckDate.getDay() !== 0 && currentCheckDate.getDay() !== 6) {
-      let dateStr = Utilities.formatDate(currentCheckDate, "GMT+7", "yyyy-MM-dd");
-      let displayDate = Utilities.formatDate(currentCheckDate, "GMT+7", "dd/MM (EEE)");
-      
+      let dateStr = Utilities.formatDate(currentCheckDate, "GMT+7", "yyyy-MM-dd"); 
+      let displayDate = Utilities.formatDate(currentCheckDate, "GMT+7", "dd/MM (EEE)"); 
       let rawBookings = [];
 
       for (let i = 1; i < data.length; i++) {
-        let status = (statusColIdx !== -1 && data[i][statusColIdx]) ? String(data[i][statusColIdx]).trim() : "Active";
+        let status = (statusColIdx !== -1 && data[i][statusColIdx]) ? String(data[i][statusColIdx]).trim() : "Active"; 
         if (status === "Canceled") continue; 
 
         let rowDateStr = Utilities.formatDate(new Date(data[i][3]), "GMT+7", "yyyy-MM-dd");
         
         if (rowDateStr === dateStr) {
-          let machine = data[i][2];
+          let machine = data[i][2]; 
           if (!MACHINES_CONFIG[machine]) continue;
           
-          let timeStr = data[i][4];
-          let userName = data[i][5];
-          let advisor = data[i][6];
+          let timeStr = data[i][4]; 
+          let userName = data[i][5]; 
+          let advisor = data[i][6]; 
           let [s, e] = timeStr.split("-");
           
-          let startH = parseInt(s.split(":")[0]);
-          let endH = parseInt(e.split(":")[0]);
+          let startH = parseInt(s.split(":")[0]); 
+          let endH = parseInt(e.split(":")[0]); 
           let bookingTimestamp = new Date(data[i][0]).getTime(); 
 
           rawBookings.push({
-            machine: machine, 
-            user: userName, 
-            advisor: advisor,
-            start: startH, 
-            duration: endH - startH,
-            end: endH,
-            timestamp: bookingTimestamp 
+            machine: machine, user: userName, advisor: advisor,
+            start: startH, duration: endH - startH, end: endH, timestamp: bookingTimestamp 
           });
         }
       }
@@ -1130,27 +1113,22 @@ function getTimelineData() {
       Object.keys(BLOCKED_CONFIG).forEach(machine => {
         if (BLOCKED_CONFIG[machine][dateStr]) {
             Object.keys(BLOCKED_CONFIG[machine][dateStr]).forEach(timeStr => {
-               let blockMsg = BLOCKED_CONFIG[machine][dateStr][timeStr];
-               let [s, e] = timeStr.split("-");
-               let startH = parseInt(s.split(":")[0]);
+               let blockMsg = BLOCKED_CONFIG[machine][dateStr][timeStr]; 
+               let [s, e] = timeStr.split("-"); 
+               let startH = parseInt(s.split(":")[0]); 
                let endH = parseInt(e.split(":")[0]);
                
                rawBookings.push({
-                   machine: machine,
-                   user: "⛔ " + blockMsg, 
-                   advisor: "",
-                   start: startH,
-                   duration: endH - startH,
-                   end: endH,
-                   timestamp: 0 
+                   machine: machine, user: "⛔ " + blockMsg, advisor: "",
+                   start: startH, duration: endH - startH, end: endH, timestamp: 0 
                });
             });
         }
       });
       
-      schedule.push({ date: displayDate, bookings: rawBookings });
+      schedule.push({ date: displayDate, bookings: rawBookings }); 
       dayCount++;
-    }
+    } 
     currentCheckDate.setDate(currentCheckDate.getDate() + 1);
   }
   return schedule;
@@ -1162,4 +1140,50 @@ function markDataChanged() {
 
 function getLastUpdateTimestamp() { 
   return PropertiesService.getScriptProperties().getProperty('LAST_UPDATE') || 0; 
+}
+
+// ==========================================
+// ⭐️ ฟังก์ชันย้ายข้อมูลเก่าไป History อัตโนมัติ (Auto-Archive)
+// ==========================================
+function autoArchiveBookings() {
+  const ss = getSS();
+  const sheetBookings = ss.getSheetByName(SHEET_BOOKINGS);
+  const sheetHistory = ss.getSheetByName(SHEET_HISTORY);
+  
+  if (!sheetBookings || !sheetHistory) return;
+
+  const data = sheetBookings.getDataRange().getValues();
+  const headers = data[0];
+  const statusColIdx = headers.indexOf('Status');
+  
+  let rowsToArchive = [];
+  let rowsToDelete = [];
+  let now = new Date();
+
+  // วนลูปจากล่างขึ้นบน
+  for (let i = data.length - 1; i >= 1; i--) {
+    let dateStr = Utilities.formatDate(new Date(data[i][3]), Session.getScriptTimeZone(), "yyyy-MM-dd");
+    let timeStr = data[i][4];
+    
+    let dateParts = dateStr.split('-');
+    let endTimeParts = timeStr.split('-')[1].split(':'); 
+    let bookEndDate = new Date(dateParts[0], dateParts[1] - 1, dateParts[2], endTimeParts[0], endTimeParts[1], 0);
+    
+    let status = (statusColIdx !== -1 && data[i][statusColIdx]) ? String(data[i][statusColIdx]).trim() : "Active";
+
+    // ย้ายเมื่อคิวจบไปแล้ว หรือ ถูกยกเลิกไปแล้ว
+    if (bookEndDate < now || status === "Canceled") {
+      rowsToArchive.push(data[i]);
+      rowsToDelete.push(i + 1); 
+    }
+  }
+
+  if (rowsToArchive.length > 0) {
+    rowsToArchive.reverse(); 
+    sheetHistory.getRange(sheetHistory.getLastRow() + 1, 1, rowsToArchive.length, headers.length).setValues(rowsToArchive);
+    rowsToDelete.forEach(rowIdx => sheetBookings.deleteRow(rowIdx));
+    console.log(`✅ ย้ายข้อมูลสำเร็จจำนวน ${rowsToArchive.length} รายการ`);
+  } else {
+    console.log("📭 ไม่มีข้อมูลเก่าให้ย้าย");
+  }
 }
